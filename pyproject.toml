@@ -57,7 +57,8 @@ dependencies = [
     "tiktoken>=0.5.0",
     "numpy>=1.21.0",
     "transformers>=4.20.0",
-    "torch>=1.12.0"
+    "torch>=1.12.0",
+    "anthropic>=0.5.0"
 ]
 
 [project.optional-dependencies]
