@@ -1,0 +1,19 @@
+[project]
+name = "privysha"
+version = "0.1.0"
+description = "Privacy first prompt optimization and compilation framework for AI systems"
+authors = [{name = "Ajay Rajan A"}]
+
+dependencies = [
+    "pydantic",
+    "tiktoken",
+    "numpy",
+    "transformers",
+    "torch"
+]
+
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
