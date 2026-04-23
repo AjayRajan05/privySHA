@@ -17,8 +17,28 @@ class Optimizer:
     def __init__(self, token_budget=1200):
         self.token_budget = token_budget
 
-    def compress(self, text):
+    def optimize(self, ir):
+        # Apply optimization rules
+        if hasattr(ir, 'copy'):
+            optimized_ir = ir.copy()
+        else:
+            # Handle case where ir is a dict
+            optimized_ir = ir.copy() if isinstance(ir, dict) else ir
+        
+        # Remove redundant constraints if they exist
+        if hasattr(optimized_ir, 'constraints'):
+            if "thorough" in optimized_ir.constraints and "detailed" in optimized_ir.constraints:
+                optimized_ir.constraints.remove("detailed")
+        elif isinstance(optimized_ir, dict) and "constraints" in optimized_ir:
+            if "thorough" in optimized_ir["constraints"] and "detailed" in optimized_ir["constraints"]:
+                optimized_ir["constraints"].remove("detailed")
+        
+        return optimized_ir
 
+    def compress(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+        
         words = text.split()
 
         if len(words) > 10:
@@ -27,6 +47,8 @@ class Optimizer:
         return " ".join(words)
 
     def run(self, text):
+        if not isinstance(text, str):
+            text = str(text)
 
         compressed = self.compress(text)
 

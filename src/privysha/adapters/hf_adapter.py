@@ -50,9 +50,11 @@ class HuggingFaceAdapter(BaseAdapter):
             self.model = AutoModelForCausalLM.from_pretrained(
                 model,
                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                device_map="auto" if self.device == "cuda" else None,
                 trust_remote_code=True
             )
+            # Move model to device manually
+            if self.device == "cuda":
+                self.model = self.model.to("cuda")
             self.generator = None
 
     def generate(self, prompt: str) -> str:

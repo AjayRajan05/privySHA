@@ -38,10 +38,9 @@ def test_package_structure():
     
     if missing_files:
         print(f"✗ Missing files: {missing_files}")
-        return False
+        assert False, f"Missing files: {missing_files}"
     else:
         print("✓ All required files present")
-        return True
 
 def test_imports():
     """Test if all imports work"""
@@ -64,11 +63,10 @@ def test_imports():
         from privysha.stages.optimizer import Optimizer
         print("✓ Optimizer import successful")
         
-        return True
     except Exception as e:
         print(f"✗ Import failed: {e}")
         traceback.print_exc()
-        return False
+        assert False, f"Import failed: {e}"
 
 def test_basic_functionality():
     """Test basic pipeline functionality"""
@@ -91,22 +89,19 @@ def test_basic_functionality():
         required_stages = ["raw_prompt", "sanitized", "optimized", "compiled_prompt"]
         for stage in required_stages:
             if stage not in result:
-                print(f"✗ Missing stage: {stage}")
-                return False
+                assert False, f"Missing stage: {stage}"
         
         print("✓ All pipeline stages present")
         
         # Test PII masking
         if "john@example.com" in result["sanitized"]:
-            print("✗ PII not properly masked")
-            return False
+            assert False, "PII not properly masked"
         else:
             print("✓ PII masking working")
         
         # Test sanitization
         if "bro" in result["sanitized"].lower():
-            print("✗ Conversational filler not removed")
-            return False
+            assert False, "Conversational filler not removed"
         else:
             print("✓ Prompt sanitization working")
         
@@ -115,7 +110,7 @@ def test_basic_functionality():
     except Exception as e:
         print(f"✗ Basic functionality test failed: {e}")
         traceback.print_exc()
-        return False
+        assert False, f"Basic functionality test failed: {e}"
 
 def test_different_adapters():
     """Test different adapter types"""
@@ -144,7 +139,7 @@ def test_different_adapters():
     except Exception as e:
         print(f"✗ Adapter test failed: {e}")
         traceback.print_exc()
-        return False
+        assert False, f"Adapter test failed: {e}"
 
 def test_pipeline_stages():
     """Test individual pipeline stages"""
@@ -164,8 +159,7 @@ def test_pipeline_stages():
         if "john@example.com" not in sanitized and "bro" not in sanitized.lower():
             print("✓ Sanitizer working correctly")
         else:
-            print("✗ Sanitizer not working properly")
-            return False
+            assert False, "Sanitizer not working properly"
         
         # Test optimizer
         optimizer = Optimizer(100)
@@ -184,7 +178,7 @@ def test_pipeline_stages():
     except Exception as e:
         print(f"✗ Pipeline stages test failed: {e}")
         traceback.print_exc()
-        return False
+        assert False, f"Pipeline stages test failed: {e}"
 
 def test_documentation():
     """Test if documentation is adequate"""
@@ -195,13 +189,11 @@ def test_documentation():
         # Check README exists and has content
         readme_path = Path("README.md")
         if not readme_path.exists():
-            print("✗ README.md missing")
-            return False
+            assert False, "README.md missing"
         
         readme_content = readme_path.read_text(encoding='utf-8', errors='ignore')
         if len(readme_content) < 1000:
-            print("✗ README too short")
-            return False
+            assert False, "README too short"
         
         # Check for key sections
         required_sections = [
@@ -217,8 +209,7 @@ def test_documentation():
                 missing_sections.append(section)
         
         if missing_sections:
-            print(f"✗ Missing README sections: {missing_sections}")
-            return False
+            assert False, f"Missing README sections: {missing_sections}"
         else:
             print("✓ README documentation adequate")
         
@@ -226,7 +217,7 @@ def test_documentation():
         
     except Exception as e:
         print(f"✗ Documentation test failed: {e}")
-        return False
+        assert False, f"Documentation test failed: {e}"
 
 def main():
     """Run all tests"""

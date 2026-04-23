@@ -14,12 +14,21 @@ Transform raw prompts into optimized, structured, secure, and cost-efficient ins
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v2%20stable-green)
+![PyPI Version](https://img.shields.io/badge/pypi-0.1.1-blue)
+![TestPyPI](https://img.shields.io/badge/test%20pypi-0.1.1-orange)
 
+</p>
+
+<p align="center">
+<strong>📚 Documentation:</strong>
+<a href="https://privysha.readthedocs.io/">ReadTheDocs</a> •
+<a href="https://test.pypi.org/project/privysha/0.1.1/">TestPyPI</a> •
+<a href="https://github.com/AjayRajan05/privysha">GitHub</a>
 </p>
 
 ---
 
-# 🚀 What is PrivySHA?
+# Overview
 
 PrivySHA is a **compiler-inspired prompt infrastructure layer** for AI systems.
 
@@ -36,6 +45,61 @@ It introduces a **structured pipeline + Prompt IR (Intermediate Representation)*
 - 🧠 Improve reliability (structured prompts)
 - 🔁 Route to the best model automatically
 - 🔍 Provide full observability (debug traces)
+
+---
+
+# Installation
+
+Install PrivySHA with pip:
+
+```bash
+pip install privysha
+```
+
+For development:
+
+```bash
+git clone https://github.com/AjayRajan05/privysha.git
+cd privysha
+pip install -e ".[dev]"
+```
+
+---
+
+# Quick Start
+
+```python
+from privysha import Agent
+
+# Simple usage
+agent = Agent(model="gpt-4o-mini", privacy=True)
+response = agent.run("Analyze this dataset for anomalies")
+
+# With tracing
+result = agent.run("Analyze this dataset", trace=True)
+print(result["optimized"])  # See optimized prompt
+print(result["response"])   # See model response
+```
+
+---
+
+# Key Features
+
+## 🚀 Core Capabilities
+
+- **Prompt Compilation**: Raw prompts → optimized instructions
+- **Privacy Protection**: Automatic PII masking and security filtering
+- **Token Optimization**: Reduce costs by 30-70% through intelligent compression
+- **Smart Routing**: Automatic model selection based on task complexity
+- **Full Observability**: Complete debug traces and performance metrics
+
+## 🛠️ Advanced Features
+
+- **Universal Adapters**: Support for OpenAI, Anthropic, Grok, HuggingFace, Ollama
+- **Fallback Logic**: Automatic failover between providers
+- **Security Layers**: Injection detection and threat analysis
+- **Model Router**: Task-based intelligent model selection
+- **Debug Tracing**: Complete pipeline visibility
 
 ---
 
@@ -324,7 +388,32 @@ privysha/
 
 ---
 
-# 🛣️ Roadmap
+# � Documentation
+
+**Complete documentation is available at:**
+
+## 🔗 Links
+- **📖 Full Documentation**: [privysha.readthedocs.io](https://privysha.readthedocs.io/)
+- **🧪 TestPyPI Package**: [test.pypi.org/project/privysha](https://test.pypi.org/project/privysha/0.1.1/)
+- **💻 GitHub Repository**: [github.com/AjayRajan05/privysha](https://github.com/AjayRajan05/privysha)
+
+## 📋 Documentation Sections
+- **Getting Started** - Installation and basic usage
+- **API Reference** - Complete function and class documentation
+- **Architecture Guide** - Understanding the pipeline and components
+- **Advanced Usage** - Custom adapters, routing, and optimization
+- **Examples** - Real-world use cases and code samples
+- **Troubleshooting** - Common issues and solutions
+
+## 🚀 Quick Links
+- [Installation Guide](https://privysha.readthedocs.io/en/latest/installation.html)
+- [Quick Start Tutorial](https://privysha.readthedocs.io/en/latest/quickstart.html)
+- [API Documentation](https://privysha.readthedocs.io/en/latest/api/)
+- [Examples Gallery](https://privysha.readthedocs.io/en/latest/examples/)
+
+---
+
+# �🛣️ Roadmap
 
 * Prompt caching engine
 * Visual debugger UI
