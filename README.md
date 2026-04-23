@@ -46,12 +46,6 @@ It introduces a **structured pipeline + Prompt IR (Intermediate Representation)*
 -  Improve reliability (structured prompts)
 -  Route to the best model automatically
 -  Provide full observability (debug traces)
-- 🔒 Protect privacy (PII masking, injection detection)
-- ⚡ Reduce token usage (cost optimization)
-- 🧠 Improve reliability (structured prompts)
-- 🔁 Route to the best model automatically
-- 🔍 Provide full observability (debug traces)
-
 ---
 
 # Installation
@@ -91,7 +85,7 @@ print(result["response"])   # See model response
 
 # Key Features
 
-## 🚀 Core Capabilities
+##  Core Capabilities
 
 - **Prompt Compilation**: Raw prompts → optimized instructions
 - **Privacy Protection**: Automatic PII masking and security filtering
@@ -99,7 +93,7 @@ print(result["response"])   # See model response
 - **Smart Routing**: Automatic model selection based on task complexity
 - **Full Observability**: Complete debug traces and performance metrics
 
-## 🛠️ Advanced Features
+##  Advanced Features
 
 - **Universal Adapters**: Support for OpenAI, Anthropic, Grok, HuggingFace, Ollama
 - **Fallback Logic**: Automatic failover between providers
