@@ -394,7 +394,6 @@ privysha/
 
 ---
 
-#  Roadmap
 # � Documentation
 
 **Complete documentation is available at:**
