@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include pyproject.toml
+recursive-include src/privysha *.py
+recursive-include src/privysha *.pyi
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .git*
+global-exclude .coverage
+global-exclude .pytest_cache

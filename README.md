@@ -1,204 +1,208 @@
 # PrivySHA
 
 <p align="center">
-<strong>Privacy-First Prompt Compilation Framework for AI Systems</strong>
+<strong>⚡ The First Prompt Compiler Infrastructure for LLM Systems</strong>
 </p>
 
 <p align="center">
-Transform raw prompts into optimized, structured, privacy-safe prompts before they reach LLMs.
+Transform raw prompts into optimized, structured, secure, and cost-efficient instructions — before they ever reach an LLM.
 </p>
 
 <p align="center">
 
-![PyPI](https://img.shields.io/badge/pypi-v0.1.0-blue)
-![Python](https://img.shields.io/badge/python-3.10+-blue)
-![License](https://img.shields.io/badge/license-Apache%202.0-blue)
-![Tests](https://img.shields.io/badge/tests-pytest-green)
+![CI](https://github.com/AjayRajan05/privysha/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
+![Status](https://img.shields.io/badge/status-v2%20stable-green)
 
 </p>
 
 ---
 
-# Overview
+# 🚀 What is PrivySHA?
 
-PrivySHA is an **open-source prompt optimization and compilation framework** designed for modern AI applications.
+PrivySHA is a **compiler-inspired prompt infrastructure layer** for AI systems.
 
-Instead of sending **raw user prompts** directly to Large Language Models, PrivySHA introduces a **compiler-style processing pipeline** that transforms prompts into structured, optimized instructions.
+Instead of sending raw prompts directly to LLMs, PrivySHA:
 
-This improves:
+```
+User Prompt → PrivySHA → Optimized Prompt → Best Model → Response
+```
 
-• privacy
-• token efficiency
-• prompt reliability
-• system observability
+It introduces a **structured pipeline + Prompt IR (Intermediate Representation)** to:
 
-PrivySHA acts as a **prompt compiler layer** between your application and any LLM.
+- 🔒 Protect privacy (PII masking, injection detection)
+- ⚡ Reduce token usage (cost optimization)
+- 🧠 Improve reliability (structured prompts)
+- 🔁 Route to the best model automatically
+- 🔍 Provide full observability (debug traces)
 
 ---
 
-# Motivation
+# 🧠 Why PrivySHA?
 
-Most LLM applications look like this:
-
-```
-User Prompt → LLM
-```
-
-This causes problems:
-
-| Problem              | Result                 |
-| -------------------- | ---------------------- |
-| Unstructured prompts | inconsistent responses |
-| Excess tokens        | higher API costs       |
-| PII leakage          | privacy risk           |
-| Prompt drift         | unreliable outputs     |
-| No observability     | hard debugging         |
-
-PrivySHA introduces a structured pipeline:
+### Traditional LLM Usage
 
 ```
-User Prompt → PrivySHA → Optimized Prompt → LLM
+User → Prompt → LLM → Response
 ```
+
+Problems:
+
+- ❌ Unstructured prompts  
+- ❌ High token cost  
+- ❌ No privacy guarantees  
+- ❌ No control over model selection  
+- ❌ No debugging visibility  
 
 ---
 
-# Key Features
-
-### Privacy-First Processing
-
-PrivySHA detects and masks sensitive information such as:
-
-* email addresses
-* phone numbers
-* personal identifiers
-
-Example:
-
-Input
+### With PrivySHA
 
 ```
-John's email is john@email.com analyze this dataset
-```
-
-Output
-
-```
-<PERSON_HASH> email <EMAIL_HASH> analyze dataset
+User
+↓
+Sanitization + Security
+↓
+Prompt IR
+↓
+Optimization Engine
+↓
+Model Gateway (OpenAI / Claude / Grok / Local)
+↓
+Response
 ```
 
 ---
 
-### Prompt Sanitization
+# ⚡ Key Features (v2)
 
-Removes conversational filler.
+## 🔥 Prompt IR (Compiler Core)
 
-Example
+PrivySHA converts prompts into structured representations:
 
+```json
+{
+  "intent": "analyze",
+  "object": "dataset",
+  "constraints": ["anomaly_detection"],
+  "style": "concise",
+  "privacy": { "masked": true }
+}
 ```
-Hey bro can you analyze this dataset for anomalies?
-```
 
-becomes
+This enables:
 
-```
-analyze dataset for anomalies
+* deterministic transformations
+* advanced optimization
+* intelligent routing
+
+---
+
+## 🌐 Universal Model Gateway
+
+Supports multiple providers out of the box:
+
+* OpenAI (GPT models)
+* Anthropic Claude
+* Grok (xAI)
+* HuggingFace
+* Ollama (local)
+
+```python
+from privysha import Agent
+
+agent = Agent(model="gpt-4o-mini")  # Auto-detects OpenAI
 ```
 
 ---
 
-### Prompt AST
+## 🔁 Multi-Model Routing
 
-PrivySHA converts prompts into structured representations.
+Automatically selects the best model based on:
 
-Example
-
-```
-intent: analyze
-object: dataset
-task: anomaly_detection
-```
-
-This allows the system to perform **compiler-style optimizations**.
-
----
-
-### Token Optimization
-
-Prompts are compressed to reduce token usage.
-
-Example
-
-```
-Analyze this dataset for anomalies and patterns
-```
-
-becomes
-
-```
-@analyze(dataset)
-```
-
----
-
-### Modular Prompt Pipeline
-
-PrivySHA processes prompts through multiple stages.
-
-```
-User Prompt
-   │
-   ▼
-Parser
-   │
-   ▼
-Sanitizer
-   │
-   ▼
-PII Detection
-   │
-   ▼
-Optimizer
-   │
-   ▼
-Context Injector
-   │
-   ▼
-Prompt Compiler
-   │
-   ▼
-Model Adapter
-   │
-   ▼
-LLM Response
-```
-
-Each stage can be customized or replaced.
-
----
-
-# Installation
-
-Install from PyPI.
-
-```bash
-pip install privysha
-```
-
-Requirements:
-
-* Python 3.10+
-
----
-
-# Quick Start
+* task type
+* cost constraints
+* performance
 
 ```python
 from privysha import Agent
 
 agent = Agent(
-    model="mock",  # Use "gpt-4o-mini" for OpenAI, "llama3" for Ollama
-    privacy=True,
-    token_budget=1200
+    model="gpt-4o-mini",
+    fallback_providers=[
+        {"provider": "anthropic", "model": "claude-3-haiku"},
+        {"provider": "grok", "model": "grok-beta"}
+    ]
+)
+```
+
+---
+
+## 💰 Token & Cost Optimization
+
+```python
+from privysha import Agent
+
+agent = Agent(model="gpt-4o-mini")
+
+result = agent.run(prompt, trace=True)
+
+print(result["optimization_metrics"])
+```
+
+Example:
+
+```
+Tokens before: 120
+Tokens after: 38
+Reduction: 68%
+```
+
+---
+
+## 🔒 Security Layer (Beyond Guardrails)
+
+PrivySHA actively transforms prompts:
+
+* PII masking (email, phone, etc.)
+* injection attack detection
+* malicious content filtering
+
+---
+
+## 🔍 Full Observability (Debugger)
+
+```python
+from privysha import Agent
+
+agent = Agent(model="gpt-4o-mini")
+
+result = agent.run(prompt, trace=True)
+
+agent.print_debug_trace()
+```
+
+Output:
+
+```
+RAW → SANITIZED → IR → OPTIMIZED → COMPILED → RESPONSE
+```
+
+---
+
+# ⚡ Quick Start
+
+```bash
+pip install privysha
+```
+
+```python
+from privysha import Agent
+
+agent = Agent(
+    model="gpt-4o-mini",
+    privacy=True
 )
 
 response = agent.run(
@@ -208,386 +212,158 @@ response = agent.run(
 print(response)
 ```
 
-PrivySHA automatically:
-
-1. sanitizes the prompt
-2. removes personal language
-3. masks sensitive data
-4. optimizes token usage
-5. compiles a structured prompt
-
 ---
 
-# Usage Examples
-
-## Model Providers
-
-### OpenAI (Requires API Key)
-
-```python
-import os
-from privysha import Agent
-
-os.environ["OPENAI_API_KEY"] = "your-api-key"
-
-agent = Agent(model="gpt-4o-mini")
-response = agent.run("Analyze this data")
-```
-
-### Ollama (Requires Local Server)
+# 🔧 Environment Setup
 
 ```bash
-# Install and start Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama serve
-ollama pull llama3
-```
-
-```python
-from privysha import Agent
-
-agent = Agent(model="llama3")
-response = agent.run("Analyze this data")
-```
-
-### HuggingFace (Requires Transformers)
-
-```python
-from privysha import Agent
-
-agent = Agent(model="microsoft/DialoGPT-medium")
-response = agent.run("Analyze this data")
-```
-
-## Real-World Applications
-
-### Data Analysis Pipeline
-
-```python
-from privysha import Agent
-
-agent = Agent(model="gpt-4o-mini", privacy=True)
-
-def analyze_data(data_description):
-    prompt = f"Analyze this dataset for patterns: {data_description}"
-    return agent.run(prompt)
-
-# Usage
-result = analyze_data("Sales data from Q1 2024 with customer emails")
-```
-
-### Customer Support
-
-```python
-from privysha import Agent
-
-agent = Agent(model="gpt-4o-mini", privacy=True)
-
-def support_query(customer_message):
-    # PII will be automatically masked
-    return agent.run(customer_message)
-
-# Usage
-response = support_query("Help me with order #12345, email john@example.com")
-```
-
-### Content Moderation
-
-```python
-from privysha import Agent
-
-agent = Agent(model="gpt-4o-mini", privacy=True)
-
-def moderate_content(user_content):
-    return agent.run(f"Review this content for policy violations: {user_content}")
-
-# Usage
-moderation_result = moderate_content("Check this post from user@social.com")
+export OPENAI_API_KEY=your_key
+export ANTHROPIC_API_KEY=your_key
+export GROK_API_KEY=your_key
 ```
 
 ---
 
-# Debugging Prompt Transformations
-
-PrivySHA exposes the full pipeline trace.
+# 🧪 Example
 
 ```python
-result = agent.run(prompt, trace=True)
-
-print(result)
-```
-
-Example output
-
-```
-RAW PROMPT
-Hey bro analyze this dataset
-
-SANITIZED
-analyze dataset
-
-OPTIMIZED
-@analyze(dataset)
-
-COMPILED
-SYSTEM:
-You are a data scientist
-
-TASK:
-analyze dataset
-```
-
-This allows developers to **debug prompt engineering systematically**.
-
----
-
-# Production Deployment
-
-## Security Best Practices
-
-```python
-import os
-from privysha import Agent
-
-# Always use environment variables for API keys
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-
-# Production configuration
+# Advanced usage with fallbacks
 agent = Agent(
     model="gpt-4o-mini",
-    privacy=True,  # Always enable in production
-    token_budget=2000  # Adjust based on your needs
+    fallback_providers=[
+        {"provider": "anthropic", "model": "claude-3-haiku"},
+        {"provider": "grok", "model": "grok-beta"}
+    ]
 )
 
-def process_prompt(user_input):
-    """Process user input with privacy protection"""
-    try:
-        response = agent.run(user_input)
-        return response
-    except Exception as e:
-        return f"Error processing prompt: {e}"
-```
+result = agent.run(
+    "Analyze dataset with john@email.com",
+    trace=True
+)
 
-## Monitoring & Debugging
-
-```python
-import time
-from privysha import Agent
-
-agent = Agent(model="gpt-4o-mini", privacy=True)
-
-def monitored_process(prompt):
-    start_time = time.time()
-    
-    result = agent.run(prompt, trace=True)
-    
-    processing_time = time.time() - start_time
-    
-    # Log metrics (without sensitive data)
-    print(f"Processing time: {processing_time:.2f}s")
-    print(f"Token optimization: {len(result['raw_prompt'])} -> {len(result['optimized'])}")
-    
-    return result["response"]
-```
-
-## Testing Your Setup
-
-```python
-from privysha import Agent
-
-# Test without external services
-agent = Agent(model="mock", privacy=True)
-response = agent.run("Test prompt with email@example.com")
-print(response)
-
-# Test pipeline stages
-result = agent.run("Hey bro analyze my dataset john@example.com", trace=True)
-
-# Verify PII masking
-assert "john@example.com" not in result["sanitized"]
-assert "<EMAIL_HASH>" in result["sanitized"]
-
-# Verify sanitization
-assert "bro" not in result["sanitized"]
+print(result["response"])
+print(result["security_result"])
+print(result["optimization_metrics"])
 ```
 
 ---
 
-# Supported Model Providers
+# 🏗️ Architecture
 
-PrivySHA integrates with multiple model providers.
+```mermaid
+flowchart LR
 
-| Provider    | Type               |
-| ----------- | ------------------ |
-| OpenAI      | hosted APIs        |
-| Ollama      | local LLM runtime  |
-| HuggingFace | transformer models |
+A[User Prompt] --> B[Pipeline Engine]
+B --> C[Prompt IR]
+C --> D[Optimizer]
+D --> E[Security Layer]
+E --> F[Model Gateway]
 
-Example:
+F --> G1[OpenAI]
+F --> G2[Claude]
+F --> G3[Grok]
+F --> G4[Local Models]
 
-```python
-Agent(model="gpt-4o-mini")
-```
-
-or
-
-```python
-Agent(model="llama3")
+F --> H[Response Processor]
+H --> I[Final Output]
 ```
 
 ---
 
-# Architecture
+# 🧱 Core Components
 
-PrivySHA follows a **compiler-inspired architecture**.
+* **Prompt IR** → structured prompt representation
+* **Optimizer Engine** → token + cost reduction
+* **Security Layer** → PII + injection protection
+* **Model Gateway** → multi-provider abstraction
+* **Router** → intelligent model selection
+* **Debugger** → full pipeline tracing
+
+---
+
+# ⚔️ Comparison
+
+| Feature                   | PrivySHA | LangChain | Guardrails |
+| ------------------------- | -------- | --------- | ---------- |
+| Prompt Compiler           | ✅        | ❌         | ❌          |
+| Prompt IR                 | ✅        | ❌         | ❌          |
+| Cost Optimization         | ✅        | ❌         | ❌          |
+| Multi-model routing       | ✅        | ⚠️        | ❌          |
+| Security + Transformation | ✅        | ⚠️        | ✅          |
+| Observability             | ✅        | ⚠️        | ⚠️         |
+
+---
+
+# 🧠 Philosophy
+
+PrivySHA treats prompts as:
+
+> **Programs, not strings**
+
+This enables:
+
+* reproducibility
+* optimization
+* composability
+* debugging
+
+---
+
+# 📁 Project Structure
 
 ```
-privysha
-│
-├── agent.py
-├── pipeline.py
-│
-├── parser/
-│   └── prompt_ast.py
-│
-├── stages/
-│   ├── sanitizer.py
-│   ├── optimizer.py
-│   ├── compiler.py
-│   └── context.py
-│
-├── adapters/
-│   ├── openai_adapter.py
-│   ├── ollama_adapter.py
-│   └── hf_adapter.py
-│
+privysha/
+├── agent/
+├── pipeline/
+├── optimizer/
+├── security/
+├── gateway/
 ├── utils/
-│   └── pii_detector.py
-│
-├── tests/
-├── examples/
-└── docs/
-```
-
-More details available in:
-
-```
-docs/architecture.md
+├── cli/
 ```
 
 ---
 
-# Running Tests
+# 🛣️ Roadmap
+
+* Prompt caching engine
+* Visual debugger UI
+* Benchmarking suite
+* LangChain integration
+* Streaming support
+
+---
+
+# 🤝 Contributing
 
 ```bash
-pytest
-```
-
-Or run the comprehensive test suite:
-
-```bash
-python comprehensive_test.py
-```
-
-Tests validate:
-
-* prompt sanitization
-* token optimization
-* pipeline execution
-* PII masking
-* adapter functionality
-
----
-
-# Troubleshooting
-
-## Common Issues
-
-1. **Import Error**: `pip install -e .` in development
-2. **Connection Refused**: Start Ollama server or check API keys
-3. **Memory Issues**: Reduce `token_budget` or use smaller models
-4. **PII Not Masked**: Ensure `privacy=True`
-
-## Debug Mode
-
-```python
-# Enable full debugging
-result = agent.run(prompt, trace=True)
-
-# Print all stages
-for stage, output in result.items():
-    if stage != "response":
-        print(f"{stage.upper()}:")
-        print(f"  {output}")
-        print()
-```
-
----
-
-# Comparison
-
-| Feature             | PrivySHA | Traditional Prompting |
-| ------------------- | -------- | --------------------- |
-| Prompt Sanitization | ✓        | ✗                     |
-| PII Protection      | ✓        | ✗                     |
-| Token Optimization  | ✓        | ✗                     |
-| Pipeline Debugging  | ✓        | ✗                     |
-
-PrivySHA introduces a **structured prompt lifecycle** rather than raw prompt usage.
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-Steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for your changes
-4. Submit a pull request
-
-Before submitting:
-
-```
+git clone https://github.com/AjayRajan05/privysha
+pip install -e .
 pytest
 ```
 
 ---
 
-# Roadmap
+# 📜 License
 
-Future versions will include:
-
-* advanced prompt AST analysis
-* prompt caching engine
-* cost-aware optimization
-* multi-model routing
-* prompt benchmarking tools
+Apache 2.0 License
 
 ---
 
-# License
+# ⭐ Support
 
-This project is licensed under the **Apache 2.0 License**.
+If you find this useful:
 
-See the LICENSE file for details.
-
----
-
-# Acknowledgements
-
-PrivySHA is inspired by ideas from modern AI tooling ecosystems and compiler design.
-
-It explores the idea of treating prompts as **structured programs** rather than raw text.
+* ⭐ Star the repo
+* 🐛 Open issues
+* 💡 Suggest features
 
 ---
 
-# Support the Project
+# 🔥 Final Note
 
-If you find this project useful:
+PrivySHA is not just another AI tool.
 
-⭐ Star the repository
-🐛 Report issues
-💡 Suggest improvements
+It is an attempt to define:
+
+> **The Compiler Layer for AI Systems**
