@@ -4,7 +4,7 @@ All notable changes to this project will be documented here.
 
 ---
 
-## [0.1.1] - 2026-04-23
+## [0.1.2] - 2026-04-23
 
 ### Added
 - **Universal Adapter System**: Support for OpenAI, Anthropic, Grok, HuggingFace, and Ollama providers

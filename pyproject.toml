@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "privysha"
-version = "0.1.1"
+version = "0.1.2"
 description = "Privacy-first prompt optimization and compilation framework for AI systems"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -92,6 +92,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 privysha = ["py.typed"]
+"*" = ["*.md", "*.txt"]
 
 [tool.black]
 line-length = 88
