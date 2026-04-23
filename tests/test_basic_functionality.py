@@ -4,7 +4,7 @@ Basic functionality test for PrivySHA package
 Tests the core pipeline without requiring external LLM services
 """
 
-from src.privysha import Agent
+from privysha import Agent
 
 def test_basic_pipeline():
     """Test the basic pipeline functionality with mock adapter"""
