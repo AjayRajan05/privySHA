@@ -1,11 +1,11 @@
 # PrivySHA
 
 <p align="center">
-<strong>⚡ The First Prompt Compiler Infrastructure for LLM Systems</strong>
+<strong> The First Prompt Compiler Infrastructure for LLM Systems</strong>
 </p>
 
 <p align="center">
-Transform raw prompts into optimized, structured, secure, and cost-efficient instructions — before they ever reach an LLM.
+Transform raw prompts into optimized, structured, secure, and cost-efficient instructions, before they ever reach an LLM.
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@ Transform raw prompts into optimized, structured, secure, and cost-efficient ins
 
 ---
 
-# 🚀 What is PrivySHA?
+#  What is PrivySHA?
 
 PrivySHA is a **compiler-inspired prompt infrastructure layer** for AI systems.
 
@@ -31,15 +31,15 @@ User Prompt → PrivySHA → Optimized Prompt → Best Model → Response
 
 It introduces a **structured pipeline + Prompt IR (Intermediate Representation)** to:
 
-- 🔒 Protect privacy (PII masking, injection detection)
-- ⚡ Reduce token usage (cost optimization)
-- 🧠 Improve reliability (structured prompts)
-- 🔁 Route to the best model automatically
-- 🔍 Provide full observability (debug traces)
+-  Protect privacy (PII masking, injection detection)
+-  Reduce token usage (cost optimization)
+-  Improve reliability (structured prompts)
+-  Route to the best model automatically
+-  Provide full observability (debug traces)
 
 ---
 
-# 🧠 Why PrivySHA?
+#  Why PrivySHA?
 
 ### Traditional LLM Usage
 
@@ -75,9 +75,9 @@ Response
 
 ---
 
-# ⚡ Key Features (v2)
+#  Key Features (v2)
 
-## 🔥 Prompt IR (Compiler Core)
+##  Prompt IR (Compiler Core)
 
 PrivySHA converts prompts into structured representations:
 
@@ -99,7 +99,7 @@ This enables:
 
 ---
 
-## 🌐 Universal Model Gateway
+##  Universal Model Gateway
 
 Supports multiple providers out of the box:
 
@@ -117,7 +117,7 @@ agent = Agent(model="gpt-4o-mini")  # Auto-detects OpenAI
 
 ---
 
-## 🔁 Multi-Model Routing
+##  Multi-Model Routing
 
 Automatically selects the best model based on:
 
@@ -139,7 +139,7 @@ agent = Agent(
 
 ---
 
-## 💰 Token & Cost Optimization
+##  Token & Cost Optimization
 
 ```python
 from privysha import Agent
@@ -161,7 +161,7 @@ Reduction: 68%
 
 ---
 
-## 🔒 Security Layer (Beyond Guardrails)
+##  Security Layer (Beyond Guardrails)
 
 PrivySHA actively transforms prompts:
 
@@ -171,7 +171,7 @@ PrivySHA actively transforms prompts:
 
 ---
 
-## 🔍 Full Observability (Debugger)
+##  Full Observability (Debugger)
 
 ```python
 from privysha import Agent
@@ -191,7 +191,7 @@ RAW → SANITIZED → IR → OPTIMIZED → COMPILED → RESPONSE
 
 ---
 
-# ⚡ Quick Start
+#  Quick Start
 
 ```bash
 pip install privysha
@@ -214,7 +214,7 @@ print(response)
 
 ---
 
-# 🔧 Environment Setup
+#  Environment Setup
 
 ```bash
 export OPENAI_API_KEY=your_key
@@ -224,7 +224,7 @@ export GROK_API_KEY=your_key
 
 ---
 
-# 🧪 Example
+#  Example
 
 ```python
 # Advanced usage with fallbacks
@@ -248,7 +248,7 @@ print(result["optimization_metrics"])
 
 ---
 
-# 🏗️ Architecture
+#  Architecture
 
 ```mermaid
 flowchart LR
@@ -270,7 +270,7 @@ H --> I[Final Output]
 
 ---
 
-# 🧱 Core Components
+#  Core Components
 
 * **Prompt IR** → structured prompt representation
 * **Optimizer Engine** → token + cost reduction
@@ -281,7 +281,7 @@ H --> I[Final Output]
 
 ---
 
-# ⚔️ Comparison
+#  Comparison
 
 | Feature                   | PrivySHA | LangChain | Guardrails |
 | ------------------------- | -------- | --------- | ---------- |
@@ -294,7 +294,7 @@ H --> I[Final Output]
 
 ---
 
-# 🧠 Philosophy
+#  Philosophy
 
 PrivySHA treats prompts as:
 
@@ -309,7 +309,7 @@ This enables:
 
 ---
 
-# 📁 Project Structure
+#  Project Structure
 
 ```
 privysha/
@@ -324,7 +324,7 @@ privysha/
 
 ---
 
-# 🛣️ Roadmap
+#  Roadmap
 
 * Prompt caching engine
 * Visual debugger UI
@@ -334,7 +334,7 @@ privysha/
 
 ---
 
-# 🤝 Contributing
+#  Contributing
 
 ```bash
 git clone https://github.com/AjayRajan05/privysha
@@ -344,13 +344,13 @@ pytest
 
 ---
 
-# 📜 License
+#  License
 
 Apache 2.0 License
 
 ---
 
-# ⭐ Support
+#  Support
 
 If you find this useful:
 
@@ -360,7 +360,7 @@ If you find this useful:
 
 ---
 
-# 🔥 Final Note
+#  Final Note
 
 PrivySHA is not just another AI tool.
 
