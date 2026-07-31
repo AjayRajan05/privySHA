@@ -60,9 +60,10 @@ def test_wrap_llm_fail_closed_on_process_error(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("process failed")
 
-    import asha.integrations.llm_wrap as llm_wrap_mod
+    import asha.documents.attachments as attachments
 
-    monkeypatch.setattr(llm_wrap_mod, "_process_prompt_for_wrap", boom)
+    # Nested chat.completions path prepares kwargs via attachments helper.
+    monkeypatch.setattr(attachments, "prepare_llm_request_kwargs", boom)
     client = _MockClient()
     wrapped = wrapper_wrap_llm(client)
     with pytest.raises(ASHAProcessingError):

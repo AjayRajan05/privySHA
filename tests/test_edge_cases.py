@@ -29,10 +29,8 @@ def test_empty_prompt_sanitize():
 
 
 def test_invalid_prompt_type():
-    result = process(None)  # type: ignore[arg-type]
-    assert isinstance(result, ProcessResult)
-    assert result.degraded is True
-    assert result.degraded_reason == "invalid_prompt"
+    with pytest.raises(TypeError, match="Unsupported prompt input type"):
+        process(None)  # type: ignore[arg-type]
 
 
 def test_unicode_multilingual_prompt():
