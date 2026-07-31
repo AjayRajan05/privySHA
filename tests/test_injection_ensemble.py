@@ -35,11 +35,12 @@ from asha.core.security.security_layer import SecurityLayer, ThreatType
 @pytest.fixture(autouse=True)
 def _ensemble_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ASHA_INJECTION_MODE", "ensemble")
-    assert hardened_injection_available(), (
-        "Hardened injection required for these tests. "
-        "Install: pip install asha[hardened] ; "
-        "Train: python -m training.injection.train"
-    )
+    if not hardened_injection_available():
+        pytest.skip(
+            "Hardened injection required for these tests. "
+            "Install: pip install asha-ai[hardened] ; "
+            "Train: python -m training.injection.train"
+        )
     get_encoder(reset=True)
     get_injection_detector(mode="ensemble", reset=True)
     yield
