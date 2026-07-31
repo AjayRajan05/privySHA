@@ -25,8 +25,6 @@ from typing import Any, Callable, Optional
 from functools import wraps
 
 from ..core.streaming import (
-    extract_prompt_from_kwargs,
-    replace_prompt_in_kwargs,
     handle_streaming_response,
     handle_async_streaming_response,
     is_streaming_response,
@@ -63,6 +61,33 @@ def _process_prompt_for_wrap(
         token_budget=token_budget if mode != "strict" else min(token_budget, 800),
     )
     return _coerce_process_output(processed, prompt)
+
+
+def _prepare_kwargs_for_llm(
+    kwargs: dict[str, Any],
+    mode: str,
+    *,
+    token_budget: int = 1200,
+) -> dict[str, Any]:
+    """Mask prompts and extract+mask file attachments before the LLM call."""
+    from ..documents.attachments import prepare_llm_request_kwargs
+
+    return prepare_llm_request_kwargs(kwargs, mode=mode, token_budget=token_budget)
+
+
+def _prepare_args_for_llm(
+    args: tuple[Any, ...],
+    mode: str,
+    *,
+    token_budget: int = 1200,
+) -> tuple[Any, ...]:
+    """Process positional prompt args (Gemini generate_content(prompt), etc.)."""
+    if not args:
+        return args
+    first = args[0]
+    if not isinstance(first, str):
+        return args
+    return (_process_prompt_for_wrap(first, mode, token_budget=token_budget),) + args[1:]
 
 
 def _evaluate_anchor(response: Any, kwargs: dict[str, Any]) -> None:
@@ -111,14 +136,7 @@ def _wrap_nested_chat_completions(
 
     def wrapped_create(*args: Any, **kwargs: Any) -> Any:
         try:
-            prompt = extract_prompt_from_kwargs(kwargs)
-            if prompt:
-                kwargs = replace_prompt_in_kwargs(
-                    kwargs,
-                    _process_prompt_for_wrap(
-                        prompt, mode, token_budget=token_budget
-                    ),
-                )
+            kwargs = _prepare_kwargs_for_llm(kwargs, mode, token_budget=token_budget)
             response = original_create(*args, **kwargs)
             if kwargs.get("stream", False) and is_streaming_response(response):
                 return handle_streaming_response(response)
@@ -168,16 +186,8 @@ def wrap_llm(
         # Wrap async method
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                # Extract and process prompt
-                prompt = extract_prompt_from_kwargs(kwargs)
-
-                if prompt:
-                    optimized_prompt = _process_prompt_for_wrap(
-                        prompt,
-                        mode,
-                        token_budget=token_budget,
-                    )
-                    kwargs = replace_prompt_in_kwargs(kwargs, optimized_prompt)
+                args = _prepare_args_for_llm(args, mode, token_budget=token_budget)
+                kwargs = _prepare_kwargs_for_llm(kwargs, mode, token_budget=token_budget)
 
                 # Call original method
                 response = await original_method(*args, **kwargs)
@@ -199,16 +209,8 @@ def wrap_llm(
         # Wrap sync method
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                # Extract and process prompt
-                prompt = extract_prompt_from_kwargs(kwargs)
-
-                if prompt:
-                    optimized_prompt = _process_prompt_for_wrap(
-                        prompt,
-                        mode,
-                        token_budget=token_budget,
-                    )
-                    kwargs = replace_prompt_in_kwargs(kwargs, optimized_prompt)
+                args = _prepare_args_for_llm(args, mode, token_budget=token_budget)
+                kwargs = _prepare_kwargs_for_llm(kwargs, mode, token_budget=token_budget)
 
                 # Call original method
                 response = original_method(*args, **kwargs)
@@ -302,10 +304,13 @@ def _find_generation_method(client: Any) -> Optional[str]:
         - HuggingFace: 'generate', '__call__'
         - Ollama: 'generate', 'chat'
     """
-    # Common method names across different SDKs
+    # Prefer provider-specific names first so Gemini is not missed
+    # (GenerativeModel exposes generate_content, not create/generate).
     method_names = [
+        "generate_content",  # Google Generative AI / Gemini
+        "send_message",  # Gemini chat sessions
         "create",  # OpenAI
-        "generate",  # Anthropic, HuggingFace
+        "generate",  # Anthropic, HuggingFace, Ollama
         "chat",  # Some custom clients
         "completion",  # Some older clients
         "predict",  # Some ML clients
@@ -379,16 +384,7 @@ class UniversalWrapper:
 
             async def async_method_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
-                    # Process prompt if present
-                    prompt = extract_prompt_from_kwargs(kwargs)
-                    if prompt:
-                        from ..utils.dropin import process, _coerce_process_output
-
-                        processed = process(prompt, mode=self.mode)
-                        optimized_prompt = _coerce_process_output(processed, prompt)
-                        kwargs = replace_prompt_in_kwargs(
-                            kwargs, optimized_prompt
-                        )
+                    kwargs = _prepare_kwargs_for_llm(kwargs, self.mode)
 
                     # Call original method
                     response = await original_method(*args, **kwargs)
@@ -408,16 +404,7 @@ class UniversalWrapper:
 
             def sync_method_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
-                    # Process prompt if present
-                    prompt = extract_prompt_from_kwargs(kwargs)
-                    if prompt:
-                        from ..utils.dropin import process, _coerce_process_output
-
-                        processed = process(prompt, mode=self.mode)
-                        optimized_prompt = _coerce_process_output(processed, prompt)
-                        kwargs = replace_prompt_in_kwargs(
-                            kwargs, optimized_prompt
-                        )
+                    kwargs = _prepare_kwargs_for_llm(kwargs, self.mode)
 
                     # Call original method
                     response = original_method(*args, **kwargs)

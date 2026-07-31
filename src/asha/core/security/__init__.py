@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .security_layer import SecurityLayer, SecurityResult, SecurityLevel, ThreatType
-from .service import (
-    run_security,
-    run_security_only,
-    normalize_security_level,
-    read_security_field,
-    get_sanitized_content,
-)
+"""Security package — lazy exports so ``injection_lite`` stays stdlib-cheap."""
+
+from __future__ import annotations
+
+from typing import Any
 
 __all__ = [
     "SecurityLayer",
@@ -32,3 +29,25 @@ __all__ = [
     "read_security_field",
     "get_sanitized_content",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in ("SecurityLayer", "SecurityResult", "SecurityLevel", "ThreatType"):
+        from . import security_layer as _sl
+
+        return getattr(_sl, name)
+    if name in (
+        "run_security",
+        "run_security_only",
+        "normalize_security_level",
+        "read_security_field",
+        "get_sanitized_content",
+    ):
+        from . import service as _svc
+
+        return getattr(_svc, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

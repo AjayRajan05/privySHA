@@ -28,7 +28,10 @@ def test_django_middleware_import():
     pytest.importorskip("django")
     from asha.integrations.django.middleware import ASHAMiddleware
 
-    assert ASHAMiddleware is not None
+    assert callable(ASHAMiddleware)
+    assert hasattr(ASHAMiddleware, "_should_process_endpoint") or hasattr(
+        ASHAMiddleware, "__init__"
+    )
 
 
 def test_llamaindex_plugin_import():
@@ -36,4 +39,9 @@ def test_llamaindex_plugin_import():
     assert llama is not None
     from asha.integrations.llamaindex.plugin import wrap_query_engine
 
-    assert callable(wrap_query_engine)
+    class _MockQE:
+        def query(self, bundle):
+            return f"ok:{getattr(bundle, 'query_str', bundle)}"
+
+    wrapped = wrap_query_engine(_MockQE(), privacy=False)
+    assert type(wrapped).__name__ == "ASHAQueryEngine"

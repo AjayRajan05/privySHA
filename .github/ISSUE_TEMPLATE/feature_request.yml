@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose an enhancement (discuss large features before coding)
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Large features should be discussed first in [GitHub Discussions](https://github.com/AjayRajan05/ASHA/discussions). See also [SUPPORT.md](https://github.com/AjayRajan05/ASHA/blob/main/SUPPORT.md) and [CONTRIBUTING.md](https://github.com/AjayRajan05/ASHA/blob/main/CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do that is hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core (process / sanitize / optimize)
+        - ANCHOR / adapters
+        - Hardened models / detectors
+        - Docs / examples
+        - CI / packaging
+        - Other
+    validations:
+      required: true

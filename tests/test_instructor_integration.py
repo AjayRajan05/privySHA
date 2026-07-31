@@ -7,7 +7,11 @@ Tests the compose_with_instructor() helper using mock clients so no
 import pytest
 from unittest.mock import MagicMock
 
-from asha import process
+from asha.integrations.composition_strategy import (
+    ASHAInstructorComposer,
+    CompositionConfig,
+    compose_with_instructor,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -16,18 +20,21 @@ from asha import process
 
 
 def test_compose_with_instructor_importable():
-    from asha.integrations.composition_strategy import compose_with_instructor
-
-    assert callable(compose_with_instructor)
+    mock_client = MagicMock()
+    composer = compose_with_instructor(mock_client)
+    assert type(composer).__name__ == "ASHAInstructorComposer"
+    assert callable(composer.create_with_asha)
+    assert callable(composer.validate_with_asha)
+    assert composer.config.policy_mode in ("balanced", "strict", "lite", "off")
 
 
 def test_compose_with_instructor_returns_composer():
-    from asha.integrations.composition_strategy import compose_with_instructor
-
     mock_client = MagicMock()
     composer = compose_with_instructor(mock_client)
-    assert composer is not None
+    assert type(composer).__name__ == "ASHAInstructorComposer"
     assert hasattr(composer, "create_with_asha")
+    assert hasattr(composer, "validate_with_asha")
+    assert composer.config.policy_mode == "balanced"
 
 
 def test_create_with_asha_masks_pii():
@@ -54,21 +61,27 @@ def test_create_with_asha_masks_pii():
 
 
 def test_create_with_asha_safe_prompt_passes_through():
-    """A prompt with no PII should still be forwarded to the client."""
-    from asha.integrations.composition_strategy import compose_with_instructor
-
+    """A prompt with no PII should pass through unchanged when policy is off."""
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = MagicMock()
+    safe_prompt = "Summarize Q4 revenue growth"
 
-    composer = compose_with_instructor(mock_client)
+    composer = compose_with_instructor(
+        mock_client,
+        config=CompositionConfig(policy_mode="off"),
+    )
     composer.create_with_asha(
-        prompt="Summarize Q4 revenue growth",
+        prompt=safe_prompt,
         response_model=dict,
         client=mock_client,
         model="gpt-4o-mini",
     )
 
     mock_client.chat.completions.create.assert_called_once()
+    sent_content = mock_client.chat.completions.create.call_args.kwargs["messages"][0][
+        "content"
+    ]
+    assert sent_content == safe_prompt
 
 
 def test_create_with_asha_blocks_injection():
@@ -101,7 +114,7 @@ def test_create_with_asha_blocks_injection():
 
 def test_instructor_package_smoke():
     pytest.importorskip("instructor")
-    from asha.integrations.composition_strategy import compose_with_instructor
-
-    composer = compose_with_instructor()
-    assert composer is not None
+    mock_client = MagicMock()
+    composer = compose_with_instructor(mock_client)
+    assert isinstance(composer, ASHAInstructorComposer)
+    assert composer.create_with_asha.__name__ == "create_with_asha"

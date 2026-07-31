@@ -14,6 +14,7 @@
 
 import re
 from typing import List, Dict, Any, Optional
+from .intent_classifier import get_intent_classifier
 from .prompt_ir import PromptIR, IntentType, EntityType, ConstraintType, PrivacyLevel
 
 
@@ -566,39 +567,15 @@ class IRBuilder:
     def _extract_intent(
         self, prompt: str, ast_analysis: Optional[Dict[str, Any]] = None
     ) -> IntentType:
-        """Extract primary intent from prompt with AST analysis enhancement."""
-        intent_scores: Dict[IntentType, int] = {}
-
-        # Enhanced intent extraction with AST analysis
+        """Extract primary intent; abstain when confidence is below safe_max."""
+        ast_hint = None
         if ast_analysis and ast_analysis.get("intent"):
-            ast_intent = ast_analysis["intent"]
-            if ast_intent == "analyze":
-                intent_scores[IntentType.ANALYZE] = (
-                    intent_scores.get(IntentType.ANALYZE, 0) + 3
-                )
-            elif ast_intent == "create":
-                intent_scores[IntentType.GENERATE] = (
-                    intent_scores.get(IntentType.GENERATE, 0) + 3
-                )
-            elif ast_intent == "compare":
-                intent_scores[IntentType.COMPARE] = (
-                    intent_scores.get(IntentType.COMPARE, 0) + 3
-                )
+            ast_hint = str(ast_analysis["intent"])
 
-        # Traditional pattern matching
-        for intent, patterns in self.intent_patterns.items():
-            score = 0
-            for pattern in patterns:
-                matches = len(re.findall(pattern, prompt, re.IGNORECASE))
-                score += matches
-            intent_scores[intent] = intent_scores.get(intent, 0) + score
-
-        # Return intent with highest score, default to ANALYZE
-        if intent_scores:
-            best_intent = max(intent_scores, key=lambda k: intent_scores[k])
-            return best_intent if intent_scores[best_intent] > 0 else IntentType.ANALYZE
-
-        return IntentType.ANALYZE
+        prediction = get_intent_classifier().predict(prompt, ast_hint=ast_hint)
+        if prediction.abstained:
+            return IntentType.ABSTAIN
+        return prediction.intent
 
     def _extract_entity(
         self, prompt: str, ast_analysis: Optional[Dict[str, Any]] = None

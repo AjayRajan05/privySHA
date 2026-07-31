@@ -14,7 +14,7 @@
 
 from typing import Dict, List, Any, Tuple, Optional
 from .._ir.prompt_ir import PromptIR
-from ..safety_constraints import SafetyConstraints
+from ..safety_constraints import SafetyConstraints, SimilarityMode
 from ..format_lock import FormatLock
 from .msdpc import MSDPCOptimizer
 
@@ -27,12 +27,21 @@ class PromptOptimizer:
     all optimization work to the Multi-Stage Deterministic Prompt Compiler.
     """
 
-    def __init__(self, use_msdpc: bool = True):
+    def __init__(
+        self,
+        use_msdpc: bool = True,
+        *,
+        similarity_mode: SimilarityMode = "auto",
+        allow_hash_fallback: bool = False,
+    ):
         """
         Initialize optimizer with MSDPC.
 
         Args:
             use_msdpc: Always use MSDPC (legacy mode deprecated)
+            similarity_mode: ``auto`` (Jaccard by default; MiniLM only when
+                ``ASHA_OPTIMIZER_EMBEDDING=1``), ``embedding``, or ``jaccard``
+            allow_hash_fallback: deterministic pseudo-embeddings for offline tests
         """
         if not use_msdpc:
             raise DeprecationWarning(
@@ -41,7 +50,10 @@ class PromptOptimizer:
 
         self.use_msdpc = True
         self.msdpc_optimizer = MSDPCOptimizer()
-        self.safety_constraints = SafetyConstraints()
+        self.safety_constraints = SafetyConstraints(
+            similarity_mode=similarity_mode,
+            allow_hash_fallback=allow_hash_fallback,
+        )
         self.format_lock = FormatLock()
 
     def optimize(
@@ -106,10 +118,12 @@ class PromptOptimizer:
         # Apply MSDPC optimization
         optimized_prompt, msdpc_metrics = self.msdpc_optimizer.optimize(prompt)
 
-        # Apply safety constraints check
-        is_safe, violations = self.safety_constraints.check_safety(
+        # Apply safety constraints check (embedding cosine vs calibrated floor)
+        safety_report = self.safety_constraints.get_safety_report(
             prompt, optimized_prompt
         )
+        is_safe = safety_report["is_safe"]
+        violations = safety_report["violations"]
         if not is_safe:
             # Revert to original if safety violations detected
             optimized_prompt = prompt
@@ -140,6 +154,9 @@ class PromptOptimizer:
             ),
             "format_lock_applied": {},
             "safety_violations": violations if not is_safe else [],
+            "semantic_similarity": safety_report.get("semantic_similarity"),
+            "similarity_floor": safety_report.get("similarity_floor"),
+            "similarity_method": safety_report.get("similarity_method"),
             "msdpc_used": True,
             "msdpc_metrics": {
                 "clarity_score": msdpc_metrics.clarity_score,

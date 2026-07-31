@@ -18,8 +18,20 @@ class SandboxManager:
     - hard / subprocess: run tool callable in child process
     """
 
+    _SUPPORTED = frozenset({"off", "none", "disabled", "auto", "hard", "subprocess"})
+
     def __init__(self, mode: str = "auto", policy: Optional[SandboxPolicy] = None) -> None:
         self.mode = (mode or "auto").lower()
+        if self.mode in ("docker", "bwrap", "container"):
+            raise ValueError(
+                f"Sandbox mode '{self.mode}' is not implemented in asha 0.4.2 "
+                "(deferred to 0.5.x). Use isolation='auto' or isolation='hard'."
+            )
+        if self.mode not in self._SUPPORTED:
+            raise ValueError(
+                f"Unknown sandbox isolation mode '{self.mode}'. "
+                "Supported: off, auto, hard (subprocess)."
+            )
         self.policy = policy or SandboxPolicy()
 
     def apply_mission(self, *, local_only: bool, allowed_write_paths: list[str]) -> None:

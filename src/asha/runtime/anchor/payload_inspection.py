@@ -66,8 +66,17 @@ def is_high_risk_tool(tool_name: str) -> bool:
 
 
 def is_mission_local_tool(tool_name: str, contract: MissionContract) -> bool:
-    """Allowlisted local read/write tools that stay within mission scope."""
+    """Allowlisted local read/write tools that stay within mission scope.
+
+    Network-egress and destructive tools are never "local" even if allowlisted —
+    they still require hard-block / approval under local_only missions.
+    """
     if tool_name not in contract.allowed_tools:
+        return False
+    from .tool_capabilities import get_tool_capabilities
+
+    caps = get_tool_capabilities(tool_name)
+    if caps.network_egress or caps.destructive or is_high_risk_tool(tool_name):
         return False
     if is_read_tool(tool_name):
         return True
@@ -270,3 +279,34 @@ def find_forbidden_metadata_matches(
 
 def format_forbidden_matches(matches: List[ForbiddenMatch]) -> List[str]:
     return [f"{match.term} in {match.field}='{match.value}'" for match in matches]
+
+
+# Explicit capability registration API (preferred over name-prefix inference).
+from .tool_capabilities import (  # noqa: E402
+    ToolCapabilities,
+    categorize_tool,
+    get_tool_capabilities,
+    register_tool,
+    register_tool_capabilities,
+)
+
+__all__ = [
+    "METADATA_KEYS",
+    "NETWORK_METADATA_KEYS",
+    "ForbiddenMatch",
+    "ToolCapabilities",
+    "categorize_tool",
+    "contains_forbidden_term",
+    "format_forbidden_matches",
+    "get_tool_capabilities",
+    "is_content_exempt_tool",
+    "is_high_risk_tool",
+    "is_mission_local_tool",
+    "is_read_tool",
+    "is_write_tool",
+    "parse_tool_arguments",
+    "register_tool",
+    "register_tool_capabilities",
+    "tool_name_policy_violations",
+    "validate_resource_scope",
+]

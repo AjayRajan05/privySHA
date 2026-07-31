@@ -2,6 +2,7 @@ import time
 import uuid
 from typing import Dict, Any, List
 from .contracts import MissionContract
+from .domain_classifier import get_domain_classifier, restrictive_forbidden
 from .intent_parser import parse_mission_intent
 
 class MissionCompiler:
@@ -10,6 +11,7 @@ class MissionCompiler:
     """
     def __init__(self, default_risk_tolerance: str = "LOW"):
         self.default_risk_tolerance = default_risk_tolerance
+        self._domain_clf = get_domain_classifier()
 
     def compile(self, prompt: str, context: Dict[str, Any] = None) -> MissionContract:
         """
@@ -33,23 +35,44 @@ class MissionCompiler:
         allowed_domains: List[str] = []
         allowed_memory_scopes = ["session"]
         required_resources = list(intent.allowed_read_paths + intent.allowed_write_paths)
+        low_confidence = False
 
-        prompt_lower = prompt.lower()
-        if "report" in prompt_lower or "analytics" in prompt_lower:
-            allowed_domains.extend(["analytics", "spreadsheets"])
-            allowed_memory_scopes.append("reporting")
-            forbidden_actions.extend(["email", "payments", "credentials"])
-        elif ("email" in prompt_lower or "message" in prompt_lower) and not (
-            intent.local_only or intent.forbid_network_exfiltration
-        ):
-            allowed_domains.extend(["communication"])
-            allowed_actions.append("send")
-            forbidden_actions.extend(["payments", "credentials", "database_write"])
+        prediction = self._domain_clf.predict(prompt)
+        if prediction.low_confidence:
+            low_confidence = True
+            forbidden_actions.extend(restrictive_forbidden())
+            if intent.forbid_network_exfiltration or intent.local_only:
+                forbidden_actions.extend(intent.forbidden_network_tokens)
+        else:
+            policy = self._domain_clf.policy_for(prediction.domain)
+            allowed_domains.extend(policy.get("allowed_domains", []))
+            allowed_memory_scopes.extend(policy.get("memory_scopes", []))
+            forbidden_actions.extend(prediction.suggested_forbidden)
 
-        if intent.write_requested and "write" not in allowed_actions:
+            extra_actions = list(policy.get("allowed_actions", []))
+            if extra_actions and not (
+                intent.local_only or intent.forbid_network_exfiltration
+            ):
+                for action in extra_actions:
+                    if action not in allowed_actions:
+                        allowed_actions.append(action)
+
+        explicit_write = any(
+            phrase in prompt.lower()
+            for phrase in ("write", "save", "persist", "output/", "to a text file", "to file")
+        )
+        if explicit_write and "write" not in allowed_actions:
+            allowed_actions.append("write")
+        elif not low_confidence and intent.write_requested and "write" not in allowed_actions:
             allowed_actions.append("write")
 
-        if intent.forbid_network_exfiltration:
+        local_only = intent.local_only
+        forbid_network = intent.forbid_network_exfiltration
+        if low_confidence:
+            local_only = True
+            forbid_network = True
+
+        if forbid_network:
             forbidden_actions.extend(intent.forbidden_network_tokens)
 
         expected_outcomes = list(intent.expected_outcomes)
@@ -69,9 +92,10 @@ class MissionCompiler:
             completion_criteria=completion_criteria,
             risk_tolerance=context.get("risk_tolerance", self.default_risk_tolerance),
             created_at=time.time(),
-            local_only=intent.local_only,
-            forbid_network_exfiltration=intent.forbid_network_exfiltration,
+            local_only=local_only,
+            forbid_network_exfiltration=forbid_network,
             allowed_read_paths=intent.allowed_read_paths,
             allowed_write_paths=intent.allowed_write_paths,
             forbidden_network_tokens=intent.forbidden_network_tokens,
+            low_confidence=low_confidence,
         )

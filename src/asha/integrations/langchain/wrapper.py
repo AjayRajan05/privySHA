@@ -21,17 +21,28 @@ allowing ASHA to secure and optimize prompts within LangChain pipelines.
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from langchain.schema import BasePromptTemplate, BaseOutputParser
-    from langchain.schema.runnable import Runnable
-    from langchain.schema.messages import BaseMessage, HumanMessage
-    from langchain.chains import LLMChain
-    from langchain.prompts import PromptTemplate, ChatPromptTemplate
-    from langchain.llms.base import BaseLLM
-    from langchain.chat_models.base import BaseChatModel
+# Prefer langchain_core (modern extras); fall back to legacy monolith paths.
+# Catch Exception: a polluted torch/numpy process can raise RuntimeError during
+# transitive imports and must not abort the wrapper module load.
+_LANGCHAIN_IMPORT_ERROR: Optional[BaseException] = None
+try:
+    from langchain_core.prompts.base import BasePromptTemplate
+    from langchain_core.output_parsers import BaseOutputParser
+    from langchain_core.runnables import Runnable
+    from langchain_core.messages import BaseMessage, HumanMessage
+    from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+    from langchain_core.language_models.llms import BaseLLM
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    try:
+        from langchain.chains import LLMChain  # type: ignore
+    except Exception:  # pragma: no cover - optional legacy helper
+        class LLMChain:  # type: ignore[no-redef]
+            llm: Any
+            prompt: Any
 
     LANGCHAIN_AVAILABLE = True
-else:
+except Exception as _core_exc:
     try:
         from langchain.schema import BasePromptTemplate, BaseOutputParser
         from langchain.schema.runnable import Runnable
@@ -42,7 +53,8 @@ else:
         from langchain.chat_models.base import BaseChatModel
 
         LANGCHAIN_AVAILABLE = True
-    except ImportError:
+    except Exception as _legacy_exc:
+        _LANGCHAIN_IMPORT_ERROR = _legacy_exc or _core_exc
         LANGCHAIN_AVAILABLE = False
 
         class BasePromptTemplate:
@@ -83,6 +95,9 @@ else:
         class BaseChatModel:
             pass
 
+if TYPE_CHECKING:
+    LANGCHAIN_AVAILABLE = True
+
 from ...utils.dropin import process, _coerce_process_output
 
 
@@ -102,13 +117,17 @@ def _optimize_prompt_text(
     return optimized, None
 
 
-class ASHAPromptTemplate(BasePromptTemplate):
+class ASHAPromptTemplate(PromptTemplate):
     """
     LangChain PromptTemplate wrapper that applies ASHA optimization.
 
     This wrapper automatically processes prompts through ASHA's
     security and optimization pipeline before passing them to the LLM.
     """
+
+    privacy: bool = True
+    token_budget: int = 1200
+    debug_metrics: bool = False
 
     def __init__(
         self,
@@ -131,16 +150,20 @@ class ASHAPromptTemplate(BasePromptTemplate):
         """
         if not LANGCHAIN_AVAILABLE:
             raise ImportError(
-                "LangChain is not installed. Install with: pip install langchain\n"
+                "LangChain is not installed. Install with: pip install asha[langchain]\n"
                 "Or use the standalone ASHA functions instead."
             )
 
-        super().__init__(input_variables=input_variables, **kwargs)
-        self.template = template
-        self.privacy = privacy
-        self.token_budget = token_budget
-        self.debug_metrics = debug_metrics
-        self._last_metrics: Optional[Dict[str, Any]] = None
+        super().__init__(
+            input_variables=input_variables,
+            template=template,
+            **kwargs,
+        )
+        # Prefer object.__setattr__ so pydantic/core models accept extra state.
+        object.__setattr__(self, "privacy", privacy)
+        object.__setattr__(self, "token_budget", token_budget)
+        object.__setattr__(self, "debug_metrics", debug_metrics)
+        object.__setattr__(self, "_last_metrics", None)
 
     def format(self, **kwargs: Any) -> str:
         """
@@ -152,22 +175,30 @@ class ASHAPromptTemplate(BasePromptTemplate):
         Returns:
             Optimized prompt string
         """
-        # Format the template normally
         formatted_prompt = super().format(**kwargs)
 
         optimized, metrics = _optimize_prompt_text(
             formatted_prompt,
-            privacy=self.privacy,
-            token_budget=self.token_budget,
-            debug_metrics=self.debug_metrics,
+            privacy=bool(getattr(self, "privacy", True)),
+            token_budget=int(getattr(self, "token_budget", 1200)),
+            debug_metrics=bool(getattr(self, "debug_metrics", False)),
         )
         if metrics is not None:
-            self._last_metrics = metrics
+            object.__setattr__(self, "_last_metrics", metrics)
         return optimized
+
+    def format_prompt(self, **kwargs: Any) -> Any:
+        """Return a PromptValue for LangChain Runnable / LCEL pipelines."""
+        try:
+            from langchain_core.prompt_values import StringPromptValue
+        except ImportError:  # pragma: no cover - legacy langchain
+            from langchain.schema import StringPromptValue  # type: ignore
+
+        return StringPromptValue(text=self.format(**kwargs))
 
     def get_last_metrics(self) -> Optional[Dict[str, Any]]:
         """Get metrics from the last prompt processing."""
-        return self._last_metrics
+        return getattr(self, "_last_metrics", None)
 
 
 class ASHALLMWrapper(BaseLLM):

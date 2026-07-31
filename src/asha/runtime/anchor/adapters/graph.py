@@ -136,6 +136,29 @@ class _AnchoredGraphProxy:
         finally:
             finalize_session(self._runtime)
 
+    async def astream(self, input: Any, config: Any = None, **kwargs: Any):  # noqa: A002
+        self._begin_step(input)
+        config = self._inject_callbacks(config)
+        try:
+            with bind_runtime(self._runtime):
+                if not callable(getattr(self._inner, "astream", None)):
+                    for chunk in self.stream(input, config=config, **kwargs):
+                        yield chunk
+                    return
+                agen = (
+                    self._inner.astream(input, config, **kwargs)
+                    if config is not None
+                    else self._inner.astream(input, **kwargs)
+                )
+                last = None
+                async for chunk in agen:
+                    last = chunk
+                    yield chunk
+                if last is not None:
+                    self._finish(last)
+        finally:
+            finalize_session(self._runtime)
+
     def compile(self, *args: Any, **kwargs: Any) -> Any:
         compiled = self._inner.compile(*args, **kwargs)
         return anchor_graph(compiled, runtime=self._runtime)
@@ -162,10 +185,17 @@ def anchor_graph(
         from asha.runtime.anchor.adapters import anchor_graph
 
         graph = StateGraph(...)
-        graph = anchor_graph(graph)
+        graph = anchor_graph(graph, interactive=False)
         app = graph.compile()
         app.invoke({"messages": [...]})
+
+    Install: ``pip install asha[langgraph]``
     """
+    module = type(target).__module__ or ""
+    if "langgraph" in module:
+        from .deps import require_module
+
+        require_module("langgraph", adapter="anchor_graph")
     if not is_agent_graph(target):
         raise TypeError(
             f"anchor_graph() expects a LangGraph graph or compiled workflow, got {type(target).__name__}."

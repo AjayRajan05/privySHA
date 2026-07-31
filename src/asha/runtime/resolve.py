@@ -58,7 +58,7 @@ def _stage_flags(
     if profile is not None:
         return profile_to_stages(profile)
     return (
-        cfg.enable_pii_detection and cfg.enable_injection_detection,
+        cfg.enable_pii_detection or cfg.enable_injection_detection,
         cfg.allow_modification,
         cfg.enable_optimization,
     )
@@ -142,10 +142,14 @@ def resolve_sanitize_safety(mode: str = "balanced") -> SafetyMode:
 def resolve_sanitize_policy(
     mode: str = "balanced",
     policy: Optional[PolicyConfig] = None,
-) -> tuple[SafetyMode, bool]:
-    """Return ``(safety_mode, reversible)`` for sanitize()."""
+) -> tuple[SafetyMode, bool, str]:
+    """Return ``(safety_mode, reversible, pii_mode)`` for sanitize()."""
     cfg = _effective_policy(mode, policy)
     effective_mode = (
         cfg.mode.value if hasattr(cfg.mode, "value") else str(cfg.mode)
     )
-    return safety_mode_from_policy_mode(effective_mode), cfg.reversible
+    return (
+        safety_mode_from_policy_mode(effective_mode),
+        cfg.reversible,
+        getattr(cfg, "pii_mode", "hybrid"),
+    )

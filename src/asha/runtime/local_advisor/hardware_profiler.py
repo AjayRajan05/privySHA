@@ -235,12 +235,17 @@ def detect_hardware(
 
     if gpu:
         simulated_gpus = [_simulate_gpu(gpu, vram_gb)]
+        sim_vram = simulated_gpus[0].vram_bytes
+        # Simulated GPU implies a matching workstation host — use real machine
+        # resources only as a floor, not a cap that makes ranking empty.
+        sim_ram = max(_detect_ram_bytes(), max(32 * _GiB, int(sim_vram * 1.5)))
+        sim_disk = max(_detect_disk_free_bytes(), 200 * _GiB)
         return HardwareProfile(
             gpus=simulated_gpus,
             cpu_name=_detect_cpu_name(),
             cpu_cores=_detect_cpu_cores(),
-            ram_bytes=_detect_ram_bytes(),
-            disk_free_bytes=_detect_disk_free_bytes(),
+            ram_bytes=sim_ram,
+            disk_free_bytes=sim_disk,
             os=os_name,
             backend_hint="gguf",
             simulated=True,

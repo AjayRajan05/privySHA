@@ -1,10 +1,21 @@
 version: 2
 updates:
+  # Keep core deps auditable for the lite `pip install asha-ai` path.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    # Ignore noisy optional ML stacks unless maintainers opt in manually.
+    ignore:
+      - dependency-name: torch
+      - dependency-name: transformers
+      - dependency-name: sentence-transformers
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    labels:
+      - dependencies

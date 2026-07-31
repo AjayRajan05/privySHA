@@ -22,17 +22,17 @@ Advanced components live in subpackages:
     from asha.runtime import PromptProcessor
     from asha.integrations import wrap_llm
     from asha.types import ProcessResult
+
+Package ``__init__`` is intentionally lazy: importing ``asha.core.text`` must
+not pull Agent / drop-in / ANCHOR (keeps Base cold-import in the low hundreds
+of ms). Public names resolve via ``__getattr__``.
 """
 
-__version__ = "0.4.2"
+from __future__ import annotations
 
-from .runtime.agent import Agent
-from .runtime.anchor.runtime import anchor
-from .utils.dropin import (
-    optimize,
-    process,
-    sanitize,
-)
+from typing import Any
+
+__version__ = "0.4.2"
 
 __all__ = [
     "__version__",
@@ -42,3 +42,28 @@ __all__ = [
     "Agent",
     "anchor",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "Agent":
+        from .runtime.agent import Agent
+
+        return Agent
+    if name == "anchor":
+        from .runtime.anchor.runtime import anchor
+
+        return anchor
+    if name in ("process", "sanitize", "optimize"):
+        from .utils.dropin import optimize, process, sanitize
+
+        mapping = {
+            "process": process,
+            "sanitize": sanitize,
+            "optimize": optimize,
+        }
+        return mapping[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

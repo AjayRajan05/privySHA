@@ -40,22 +40,40 @@ class MaskingStage(BaseStage):
                 "generic": {"format": "[{type}]", "simple": True},
             },
             "default_strategy": "hash",
+            # Structured identifiers always use stable hash tokens that match
+            # the lite PIIDetector contract ([PHONE_HASH], [CREDIT_CARD_HASH], …).
             "entity_type_strategies": {
-                "email": "hash",
-                "phone": "partial",
-                "ssn": "preserve_length",
-                "credit_card": "preserve_length",
+                "email": "stable_hash",
+                "phone": "stable_hash",
+                "ssn": "stable_hash",
+                "credit_card": "stable_hash",
+                "aadhaar": "stable_hash",
+                "pan": "stable_hash",
+                "gstin": "stable_hash",
+                "api_key": "stable_hash",
+                "jwt_token": "stable_hash",
+                "bearer_token": "stable_hash",
                 "name": "hash",
                 "address": "hash",
-                "zip_code": "partial",
+                "zip_code": "hash",
                 "ip_address": "hash",
                 "url": "hash",
-                "api_key": "generic",
-                "jwt_token": "generic",
-                "bearer_token": "generic",
+            },
+            "stable_tokens": {
+                "email": "[EMAIL_HASH]",
+                "phone": "[PHONE_HASH]",
+                "ssn": "[SSN_HASH]",
+                "credit_card": "[CREDIT_CARD_HASH]",
+                "aadhaar": "[AADHAAR_HASH]",
+                "pan": "[PAN_HASH]",
+                "gstin": "[GSTIN_HASH]",
+                "api_key": "[API_KEY_HASH]",
+                "jwt_token": "[JWT_HASH]",
+                "bearer_token": "[TOKEN_HASH]",
             },
             "hash_salt": "asha_pii_masking_v1",
             "case_sensitive": True,
+            "min_mask_confidence": 0.55,
         }
 
     def execute(self, context: PIIContext) -> StageResult:
@@ -98,6 +116,18 @@ class MaskingStage(BaseStage):
         }
 
         for entity in entities:
+            # Skip low-confidence entities — hybrid default must not mask
+            # dictionary/heuristic name FPs that scoring left in the pipeline.
+            if float(entity.confidence) < float(
+                config.get("min_mask_confidence", 0.55)
+            ):
+                continue
+            if entity.pii_type == "name":
+                from .scoring_stage import _is_stopword_heavy_name
+
+                if _is_stopword_heavy_name(entity.text):
+                    continue
+
             # Determine masking strategy
             strategy = self._determine_strategy(entity, config)
 
@@ -179,6 +209,8 @@ class MaskingStage(BaseStage):
 
         if strategy == "hash":
             return self._generate_hash_mask(entity, strategy_config, config)
+        elif strategy == "stable_hash":
+            return self._generate_stable_hash_mask(entity, config)
         elif strategy == "preserve_length":
             return self._generate_preserve_length_mask(entity, strategy_config, config)
         elif strategy == "partial":
@@ -187,6 +219,29 @@ class MaskingStage(BaseStage):
             return self._generate_generic_mask(entity, strategy_config, config)
         else:
             return self._generate_hash_mask(entity, strategies.get("hash", {}), config)
+
+    def _generate_stable_hash_mask(
+        self, entity: PIIEntity, config: Dict[str, Any]
+    ) -> str:
+        """Lite-compatible tokens for structured identifiers.
+
+        Phones/cards/SSN use fixed ``[TYPE_HASH]`` labels (match lite detector).
+        Emails use content-addressed ``[EMAIL]_xxxxxxxx`` so distinct addresses
+        get distinct tokens (collision-safe) while remaining reversible.
+        """
+        if entity.pii_type == "email":
+            return self._generate_hash_mask(
+                entity,
+                {"format": "[{type}]_{hash}", "hash_length": 8},
+                config,
+            )
+        tokens = config.get(
+            "stable_tokens", self.masking_config.get("stable_tokens", {})
+        )
+        token = tokens.get(entity.pii_type)
+        if token:
+            return str(token)
+        return f"[{entity.pii_type.upper()}_HASH]"
 
     def _generate_hash_mask(
         self, entity: PIIEntity, strategy_config: Dict[str, Any], config: Dict[str, Any]

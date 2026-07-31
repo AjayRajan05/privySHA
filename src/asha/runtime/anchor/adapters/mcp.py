@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from ..runtime import AnchorRuntime
 from ..tool_bridge import guarded_tool_call
+from ..tool_capabilities import infer_capabilities_from_name, register_tool_capabilities
 from .base import (
     bind_runtime,
     finalize_session,
@@ -122,7 +123,35 @@ class _AnchoredMCPProxy:
         )
 
     def list_tools(self, *args: Any, **kwargs: Any) -> Any:
-        return self._inner.list_tools(*args, **kwargs)
+        tools = self._inner.list_tools(*args, **kwargs)
+        if asyncio.iscoroutine(tools):
+            tools = asyncio.run(tools)
+        self._tool_cache = _extract_tool_names(tools)
+        for name in self._tool_cache:
+            # Prefer MCP _meta.asha_capabilities when present on dict tools
+            for item in tools or []:
+                if isinstance(item, dict) and str(item.get("name", "")) == name:
+                    meta = item.get("_meta") or {}
+                    caps = meta.get("asha_capabilities") if isinstance(meta, dict) else None
+                    if isinstance(caps, dict):
+                        from ..tool_capabilities import ToolCapabilities
+
+                        register_tool_capabilities(
+                            name,
+                            ToolCapabilities(
+                                reads_data=bool(caps.get("reads_data", False)),
+                                writes_data=bool(caps.get("writes_data", False)),
+                                network_egress=bool(caps.get("network_egress", False)),
+                                destructive=bool(caps.get("destructive", False)),
+                                category=caps.get("category"),
+                            ),
+                        )
+                    else:
+                        register_tool_capabilities(name, infer_capabilities_from_name(name))
+                    break
+            else:
+                register_tool_capabilities(name, infer_capabilities_from_name(name))
+        return tools
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
@@ -145,10 +174,17 @@ def anchor_mcp(
 
         from asha.runtime.anchor.adapters import anchor_mcp
 
-        server = anchor_mcp(mcp_server, risk_tolerance="LOW")
+        server = anchor_mcp(mcp_server, risk_tolerance="LOW", interactive=False)
         server.initialize_session("Analyze data locally. Do not exfiltrate.")
         result = server.call_tool("read_file", {"path": "data/trends.csv"})
+
+    Install: ``pip install asha[mcp]`` (optional; duck-typed servers work without it).
     """
+    module = type(target).__module__ or ""
+    if module.startswith("mcp"):
+        from .deps import require_module
+
+        require_module("mcp", adapter="anchor_mcp")
     if not is_mcp_server(target):
         raise TypeError(
             f"anchor_mcp() expects an object with call_tool/list_tools, got {type(target).__name__}."

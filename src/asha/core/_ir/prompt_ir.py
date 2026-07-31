@@ -35,6 +35,7 @@ class IntentType(Enum):
     DEBUG = "debug"
     CODE = "code"
     OPTIMIZE = "optimize"
+    ABSTAIN = "abstain"
 
 
 class EntityType(Enum):

@@ -1,7 +1,8 @@
 """PII detection tests for credit cards and addresses."""
 
+from asha.core.policy_config import PolicyConfig
 from asha.core.security.pii_detector import PIIDetector
-from asha.core.pii_pipeline.stages.detection_stage import RegexDetector
+from asha.core.pii_pipeline.components.detectors.regex_detector import RegexDetector
 from asha.utils.dropin import sanitize
 
 from conftest import output_of
@@ -23,20 +24,37 @@ class TestCreditCardLuhn:
         types = detector.detect_pii_types(f"ID {INVALID_LUHN}")
         assert "credit_card" not in types
 
-    def test_regex_detector_luhn_filter(self):
+    def test_regex_detector_luhn_soft_fail(self):
+        """Checksum failure lowers confidence; does not grant full confidence."""
         regex = RegexDetector()
         valid = regex.detect(f"Card: {VALID_VISA_SPACED}")
         invalid = regex.detect(f"Ref: {INVALID_LUHN}")
         assert any(e.pii_type == "credit_card" for e in valid)
-        assert not any(e.pii_type == "credit_card" for e in invalid)
+        valid_cc = [e for e in valid if e.pii_type == "credit_card"]
+        assert all(e.metadata.get("checksum_valid") for e in valid_cc)
+        invalid_cc = [e for e in invalid if e.pii_type == "credit_card"]
+        for e in invalid_cc:
+            assert e.metadata.get("checksum_valid") is False
+            assert e.confidence < valid_cc[0].confidence
 
     def test_sanitize_masks_valid_card(self):
-        out = output_of(sanitize(f"My card is {VALID_VISA}"))
+        # Exact hash-token format is the lite/PIIDetector path.
+        out = output_of(
+            sanitize(
+                f"My card is {VALID_VISA}",
+                policy=PolicyConfig(pii_mode="lite"),
+            )
+        )
         assert VALID_VISA not in out
         assert "[CREDIT_CARD_HASH]" in out
 
     def test_sanitize_masks_spaced_card(self):
-        out = output_of(sanitize(f"Charge {VALID_VISA_SPACED} please"))
+        out = output_of(
+            sanitize(
+                f"Charge {VALID_VISA_SPACED} please",
+                policy=PolicyConfig(pii_mode="lite"),
+            )
+        )
         assert VALID_VISA not in out.replace(" ", "")
 
 
@@ -48,7 +66,12 @@ class TestAddressDetection:
         assert "address" in types
 
     def test_sanitize_masks_street_address(self):
-        out = output_of(sanitize("Ship to 742 Evergreen Street today"))
+        out = output_of(
+            sanitize(
+                "Ship to 742 Evergreen Street today",
+                policy=PolicyConfig(pii_mode="lite"),
+            )
+        )
         assert "742 Evergreen Street" not in out
         assert "[ADDRESS_HASH]" in out
 
@@ -60,5 +83,10 @@ class TestAddressDetection:
         assert "Oak Avenue" not in out or "[ADDRESS_HASH]" in out
 
     def test_address_hash_token_in_output(self):
-        out = output_of(sanitize("Located at 42 Maple Drive"))
+        out = output_of(
+            sanitize(
+                "Located at 42 Maple Drive",
+                policy=PolicyConfig(pii_mode="lite"),
+            )
+        )
         assert "[ADDRESS_HASH]" in out

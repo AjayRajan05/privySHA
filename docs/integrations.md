@@ -1,10 +1,10 @@
 # Integrations
 
-**ASHA v0.4.2** - framework middleware and LLM wrapping.
+How to wrap LLM clients and attach ASHA middleware to common frameworks.
 
 ---
 
-## wrap_llm (recommended)
+## Wrap an LLM client
 
 ```python
 from asha.integrations import wrap_llm
@@ -13,12 +13,14 @@ import openai
 client = wrap_llm(openai.OpenAI(), mode="balanced")
 ```
 
-Import from **`asha.integrations`**, not root.
+Import from **`asha.integrations`**, not the package root.
 
 | Parameter | Default | Notes |
 |-----------|---------|-------|
 | `mode` | `balanced` | `strict`, `lite`, `off` |
 | `token_budget` | `1200` | Passed to internal `process()` |
+
+Advanced / experimental options (`auto_select_local_model`, smart routing): [experimental-features.md](experimental-features.md).
 
 ---
 
@@ -38,11 +40,9 @@ Globally monkey-patches SDKs. Prefer per-client `wrap_llm()` in production.
 
 ## Framework middleware
 
-Install extras first:
-
 ```bash
-pip install asha[integrations]
-# or specific: asha[fastapi], asha[langchain], etc.
+pip install asha-ai[integrations]
+# or specific: asha-ai[fastapi], asha-ai[langchain], etc.
 ```
 
 | Framework | Module |
@@ -55,7 +55,7 @@ pip install asha[integrations]
 | Instructor | `asha.integrations.composition_strategy` |
 | OpenTelemetry | `asha.integrations.otel` |
 
-Middleware uses `mode="balanced"` or `mode="off"` - not the removed `privacy=` kwarg.
+Middleware uses `mode="balanced"` or `mode="off"` — not a removed `privacy=` kwarg.
 
 ---
 
@@ -72,12 +72,12 @@ Requires optional deps (`instructor`, `langchain`).
 
 ---
 
-## Testing integrations locally
+## Test integrations locally
 
 Integration tests skip when optional deps are missing:
 
 ```bash
-pip install asha[integrations]
+pip install asha-ai[integrations]
 pytest tests/test_fastapi_integration.py -q
 ```
 
@@ -85,5 +85,6 @@ pytest tests/test_fastapi_integration.py -q
 
 ## Related
 
-- [model-gateway.md](model-gateway.md) - adapters
-- [api-reference.md](api-reference.md)
+- [Experimental features](experimental-features.md)
+- [API reference](api-reference.md)
+- [Tutorial](tutorial.md)

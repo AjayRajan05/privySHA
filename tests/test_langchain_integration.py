@@ -17,19 +17,37 @@ from asha.utils.dropin import process
 
 
 def test_langchain_wrapper_module_importable():
-    from asha.integrations.langchain import wrapper  # noqa: F401
+    import asha.integrations.langchain.wrapper as wrapper
 
     assert wrapper is not None
+    assert callable(wrapper.wrap_runnable)
+    assert wrapper.LANGCHAIN_AVAILABLE in (True, False)
+
+    class _FakeRunnable:
+        def invoke(self, inp, config=None):
+            return f"import-smoke:{inp}"
+
+    wrapped = wrapper.wrap_runnable(_FakeRunnable(), privacy=False)
+    assert wrapped.invoke("ping") == "import-smoke:ping"
 
 
 def test_langchain_wrapper_exports_expected_symbols():
     import asha.integrations.langchain.wrapper as lc_mod
+    from asha.integrations.langchain.wrapper import ASHARunnable, wrap_runnable
 
     assert hasattr(lc_mod, "ASHAPromptTemplate")
     assert hasattr(lc_mod, "ASHARunnable")
     assert hasattr(lc_mod, "wrap_runnable")
     assert hasattr(lc_mod, "wrap_llm_chain")
     assert hasattr(lc_mod, "wrap_prompt_template")
+
+    class _FakeRunnable:
+        def invoke(self, inp, config=None):
+            return f"wrapped:{inp}"
+
+    wrapped = wrap_runnable(_FakeRunnable(), privacy=False)
+    assert isinstance(wrapped, ASHARunnable)
+    assert wrapped.invoke("ping") == "wrapped:ping"
 
 
 # ---------------------------------------------------------------------------
@@ -145,10 +163,11 @@ def test_wrap_runnable_returns_asha_runnable():
 
     class _FakeRunnable:
         def invoke(self, inp, config=None):
-            return inp
+            return f"result:{inp}"
 
     wrapped = wrap_runnable(_FakeRunnable(), privacy=False)
     assert isinstance(wrapped, ASHARunnable)
+    assert wrapped.invoke("hello") == "result:hello"
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +186,8 @@ def test_asha_prompt_template_requires_langchain():
             template="Answer: {query}",
             privacy=False,
         )
-        result = tpl.format(query="What is 2+2?")
-        assert isinstance(result, str)
+        result = tpl.format(query="4")
+        assert result == "Answer: 4"
     else:
         # Without LangChain, attempting to instantiate raises ImportError
         from asha.integrations.langchain.wrapper import ASHAPromptTemplate
@@ -188,6 +207,12 @@ def test_asha_prompt_template_requires_langchain():
 
 def test_langchain_full_smoke():
     pytest.importorskip("langchain_core")
-    import asha.integrations.langchain.wrapper as lc_mod
+    from asha.integrations.langchain.wrapper import ASHARunnable, wrap_runnable
 
-    assert lc_mod.LANGCHAIN_AVAILABLE is True
+    class _FakeRunnable:
+        def invoke(self, inp, config=None):
+            return f"smoke:{inp}"
+
+    wrapped = wrap_runnable(_FakeRunnable(), privacy=False)
+    assert isinstance(wrapped, ASHARunnable)
+    assert wrapped.invoke("ok") == "smoke:ok"

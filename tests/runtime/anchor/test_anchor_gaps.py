@@ -55,9 +55,9 @@ def test_asha_agent_run_with_tools() -> None:
         return "trends loaded"
 
     agent = Agent(provider="mock", model="mock", tools=[load_trend_data])
-    # Mock LLM returns final answer (no tool call needed for this test)
     result = agent.run("Analyze trends locally")
-    assert isinstance(result, str)
+    assert "Mock" in result
+    assert "tools" in result.lower() or "analyze" in result.lower()
 
 
 def test_anchor_asha_agent_governs_tools() -> None:
@@ -83,6 +83,8 @@ def test_anchor_asha_agent_governs_tools() -> None:
 def test_anchor_any_dispatches_asha_agent() -> None:
     agent = Agent(provider="mock", model="mock", tools=[])
     wrapped = anchor_any(agent, interactive=False)
+    result = wrapped.run("Analyze trends locally")
+    assert "Mock" in result
     assert hasattr(wrapped, "_anchor_runtime")
 
 
@@ -104,11 +106,13 @@ def test_anchor_blocks_dangerous_tool_on_asha_agent() -> None:
 
 
 class _LangGraphStub:
-    __module__ = "langgraph.graph.state"
+    # Duck-typed graph shape; avoid "langgraph" in module so unit tests do not
+    # require asha[langgraph] (integration tests cover the real package).
+    __module__ = "tests.stubs.agent_graph"
 
     def __init__(self) -> None:
         self.nodes = {"tools": _ToolNodeStub()}
-        self._result = {"messages": ["done"]}
+        self._result = {"result": "ok"}
 
     def get_graph(self):
         return self
@@ -138,7 +142,7 @@ def test_graph_adapter_detection_and_invoke() -> None:
     assert is_agent_graph(graph)
     wrapped = anchor_graph(graph, interactive=False)
     result = wrapped.invoke({"messages": [{"role": "user", "content": "Analyze locally."}]})
-    assert result["messages"] == ["done"]
+    assert result["result"] == "ok"
 
 
 def test_discover_tools_finds_nested_graph_tools() -> None:

@@ -31,15 +31,25 @@ from dataclasses import dataclass
 from enum import Enum
 import time
 
-# Try to import ML libraries for enhanced detection
-try:
-    import torch
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# Do not import torch/transformers at module load — that pulls torch into every
+# process() path and can poison the suite after numpy reloads on Windows.
+# HF toxic-bert stays opt-in via ASHA_ENABLE_HF_SAFETY=1 inside ASHASafetyClassifier.
 
-    ML_AVAILABLE = True
-except ImportError:
-    ML_AVAILABLE = False
-    print("Warning: Transformers not available, using rule-based safety detection only")
+
+def _hf_stack_available() -> bool:
+    try:
+        import torch  # noqa: F401
+        from transformers import (  # noqa: F401
+            AutoTokenizer,
+            AutoModelForSequenceClassification,
+        )
+
+        return True
+    except Exception:
+        return False
+
+
+ML_AVAILABLE = False  # resolved lazily when HF safety is enabled
 
 
 class SafetyLevel(Enum):
@@ -528,35 +538,61 @@ class ContentSafetyAnalyzer:
 
 
 class ASHASafetyClassifier:
-    """ML-based safety classification for enhanced detection."""
+    """ML-based safety classification for enhanced detection.
+
+    HuggingFace model load is opt-in: set ``ASHA_ENABLE_HF_SAFETY=1``.
+    Default stays rule-based so Base/CI installs do not download toxic-bert.
+    """
 
     def __init__(self, model_name: str = "unitary/toxic-bert") -> None:
         """Initialize ML safety classifier."""
+        import os
+
         self.model_name = model_name
         self.tokenizer = None
         self.model = None
         self.loaded = False
 
-        if ML_AVAILABLE:
-            try:
-                # Suppress warnings and model loading reports
-                import warnings
-                import os
+        enable_hf = os.environ.get("ASHA_ENABLE_HF_SAFETY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if not enable_hf:
+            return
+        if not _hf_stack_available():
+            print(
+                "Warning: Hardened HF safety model unavailable "
+                "(torch/transformers not importable) — using rule-based only. "
+                "Install with: pip install asha[hardened]"
+            )
+            return
 
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    # Suppress model loading reports
-                    os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-                    self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-                    self.model = AutoModelForSequenceClassification.from_pretrained(
-                        model_name
-                    )
-                    self.loaded = True
-            except Exception as e:
-                print(
-                    f"Warning: Could not load safety model '{model_name}': {e}")
-                print("Note: Using rule-based safety detection only")
-                self.loaded = False
+        try:
+            import warnings
+
+            from transformers import (
+                AutoModelForSequenceClassification,
+                AutoTokenizer,
+            )
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    model_name
+                )
+                self.loaded = True
+        except Exception as e:
+            print(
+                f"Warning: Could not load safety model '{model_name}': {e}"
+            )
+            print(
+                "Note: Using rule-based safety detection only. "
+                "Install with: pip install asha[hardened]"
+            )
+            self.loaded = False
 
     def classify_safety(self, text: str) -> Tuple[float, str]:
         """
@@ -574,6 +610,8 @@ class ASHASafetyClassifier:
             return 0.0, "unknown"
 
         try:
+            import torch
+
             # Tokenize input
             inputs = tokenizer(
                 text, return_tensors="pt", truncation=True, max_length=512

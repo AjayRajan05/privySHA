@@ -5,10 +5,15 @@ Used by sanitize(), Processor security step, and privacy fallbacks so all securi
 processing shares one code path.
 """
 
+from __future__ import annotations
+
+import logging
+import warnings
 from typing import Any, Dict, List, Optional, Union
 
 from .security_layer import SecurityLayer, SecurityLevel, SecurityResult, ThreatType
 
+logger = logging.getLogger(__name__)
 
 def read_security_field(security_result: Any, field: str, default: Any = None) -> Any:
     """Read a field from SecurityResult dataclass or serialized dict."""
@@ -44,14 +49,22 @@ def _apply_safety_classifier(
     *,
     threat_blocking: bool,
 ) -> Optional[Any]:
+    """Always run rule-based SafetyClassifier.
+
+    Heavy HuggingFace toxic-bert is opt-in via ``ASHA_ENABLE_HF_SAFETY=1``.
+    ``ASHA_DISABLE_ML`` no longer skips this path (it only gates spaCy NER).
+    """
     import os
 
-    if os.environ.get("ASHA_DISABLE_ML", "").lower() in ("1", "true", "yes"):
-        return None
     try:
         from ..safety_classifier import SafetyClassifier
 
-        classifier = SafetyClassifier()
+        enable_hf = os.environ.get("ASHA_ENABLE_HF_SAFETY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        classifier = SafetyClassifier(enable_ml=enable_hf)
         return classifier.classify_safety(content)
     except ImportError:
         return None
@@ -137,7 +150,7 @@ def run_security(
         content: Text to secure.
         config: Optional settings:
             - security_level: str or SecurityLevel (default MEDIUM)
-            - pii_mode: "rule" | "hybrid" | "ml_only" (default "rule")
+            - pii_mode: "hybrid" (default) | "lite" (regex-only; alias "rule") | "ml_only"
             - threat_blocking: block unsafe content (default True)
             - debug_enabled: enable hybrid detector debug (default False)
 
@@ -166,43 +179,78 @@ def run_security(
     security_level = normalize_security_level(
         config.get("security_level", SecurityLevel.MEDIUM)
     )
-    pii_mode = config.get("pii_mode", "rule")
+    from ..ml_utils import validate_pii_mode
+
+    raw_pii_mode = config.get("pii_mode", "hybrid")
+    try:
+        pii_mode = validate_pii_mode(str(raw_pii_mode))
+    except ValueError:
+        pii_mode = "hybrid"
     threat_blocking = config.get("threat_blocking", True)
     debug_enabled = config.get("debug_enabled", False)
+    # Auto-upgrade: ensemble when hardened deps+artifacts exist; else lite.
+    # Explicit injection_mode / ASHA_INJECTION_MODE always wins.
+    from .injection_detector import resolve_injection_mode
+
+    raw_injection = config.get("injection_mode", None)
+    injection_mode = resolve_injection_mode(
+        None if raw_injection is None else str(raw_injection)
+    )
 
     if not enable_pii:
-        pii_mode = "rule"
+        pii_mode = "lite"
 
     layer = SecurityLayer(
         security_level,
         reversible_masking=bool(config.get("reversible", False)),
+        injection_mode=str(injection_mode),
     )
     hybrid_detector = None
 
-    if enable_pii and pii_mode != "rule":
+    # lite (and deprecated "rule" alias) → SecurityLayer/PIIDetector path.
+    # hybrid / ml_only → layered HybridPIIDetector pipeline.
+    if enable_pii and pii_mode not in ("lite",):
         try:
             from ..hybrid_pii import HybridPIIDetector
 
-            hybrid_detector = HybridPIIDetector(debug_enabled=debug_enabled)
-        except ImportError:
+            hybrid_detector = HybridPIIDetector(
+                pii_mode=pii_mode,
+                debug_enabled=debug_enabled,
+            )
+        except ImportError as exc:
             hybrid_detector = None
-
+            msg = (
+                f"pii_mode={pii_mode!r} requested but HybridPIIDetector import failed "
+                f"({exc}); falling back to regex/lite SecurityLayer path. "
+                "Install asha[ml] or asha[hardened] for hybrid PII."
+            )
+            warnings.warn(msg, UserWarning, stacklevel=2)
+            logger.warning(msg)
     if hybrid_detector:
         pii_result = hybrid_detector.detect_and_mask(content)
         masked_content = pii_result.masked_text
         masked_entities = _build_hybrid_masked_entities(pii_result.entities)
+        reversible = bool(config.get("reversible", False))
+        masking_map = (
+            dict(pii_result.masking_map or {}) if reversible else {}
+        )
+        # Hybrid owns PII masking; SecurityLayer still runs injection /
+        # neutralization / scoring so threat handling stays live.
+        scored = layer.process(masked_content, mask_pii=False)
         base = SecurityResult(
-            is_safe=True,
-            threat_level=SecurityLevel.LOW,
-            detected_threats=[],
-            sanitized_content=masked_content,
+            is_safe=scored.is_safe,
+            threat_level=scored.threat_level,
+            detected_threats=list(scored.detected_threats),
+            # Keep SecurityLayer neutralization (injection markers), not the
+            # pre-neutralization hybrid-masked text alone.
+            sanitized_content=scored.sanitized_content,
             masked_entities=masked_entities,
-            security_score=0.0,
-            recommendations=[],
-            processing_time_ms=0.0,
+            security_score=float(scored.security_score),
+            recommendations=list(scored.recommendations),
+            processing_time_ms=float(scored.processing_time_ms),
             hybrid_pii_used=True,
             safety_classifier_used=False,
-            masking_map={},
+            masking_map=masking_map if reversible else {},
         )
     else:
         base = layer.process(content, mask_pii=enable_pii)
@@ -228,20 +276,25 @@ def run_security(
 def run_security_only(
     content: str,
     *,
-    security_level: Union[str, SecurityLevel] = SecurityLevel.HIGH,
-    pii_mode: str = "rule",
+    security_level: Union[str, SecurityLevel] = SecurityLevel.MEDIUM,
+    pii_mode: str = "hybrid",
     threat_blocking: bool = True,
     debug_enabled: bool = False,
     reversible: bool = False,
+    injection_mode: Optional[str] = None,
 ) -> SecurityResult:
-    """Convenience wrapper for security-only public APIs (e.g. sanitize())."""
-    return run_security(
-        content,
-        {
-            "security_level": security_level,
-            "pii_mode": pii_mode,
-            "threat_blocking": threat_blocking,
-            "debug_enabled": debug_enabled,
-            "reversible": reversible,
-        },
-    )
+    """Convenience wrapper for security-only public APIs (e.g. sanitize()).
+
+    Defaults match :func:`run_security` / ``SecurityLayer`` (MEDIUM + hybrid PII).
+    ``sanitize_text`` may still pass ``SecurityLevel.HIGH`` explicitly.
+    """
+    cfg: Dict[str, Any] = {
+        "security_level": security_level,
+        "pii_mode": pii_mode,
+        "threat_blocking": threat_blocking,
+        "debug_enabled": debug_enabled,
+        "reversible": reversible,
+    }
+    if injection_mode is not None:
+        cfg["injection_mode"] = injection_mode
+    return run_security(content, cfg)

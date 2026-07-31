@@ -13,9 +13,11 @@ from asha.utils.dropin_privacy import SECURITY_FAIL_CLOSED_PLACEHOLDER
 
 
 async def test_optimize_async_returns_optimize_result():
-    result = await optimize_async("Summarize quarterly sales data please")
-    assert isinstance(result, OptimizeResult)
-    assert len(result.output) > 0
+    prompt = "Summarize quarterly sales data please"
+    result = await optimize_async(prompt)
+    assert result.output == prompt
+    assert "summarize" in result.output.lower()
+    assert "sales" in result.output.lower()
 
 
 async def test_sanitize_async_masks_email():
@@ -58,8 +60,9 @@ async def test_sanitize_async_observable_failure(monkeypatch):
 
 
 async def test_process_async_returns_process_result():
-    result = await process_async("Hello world")
-    assert isinstance(result, ProcessResult)
+    result = await process_async("Contact john@example.com for help", mode="balanced")
+    assert "john@example.com" not in result.output
+    assert "help" in result.output.lower() or "search" in result.output.lower()
 
 
 async def test_process_async_concurrent_calls_isolated():

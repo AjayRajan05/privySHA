@@ -1,98 +1,58 @@
 # ASHA Documentation
 
-**v0.4.2** - mission-aware agent governance (ANCHOR) plus drop-in security and optimization for LLM applications.
+ASHA is a Python library for **mission-aware agent governance** and **drop-in prompt security**. Use `anchor()` to keep autonomous agents aligned with the user's goal, and `process()` / `wrap_llm()` to mask PII, check injection patterns, and compress prompts before they reach a model.
 
-ASHA masks PII, reduces tokens, and checks for injection patterns before prompts reach a model. **ANCHOR** wraps autonomous agents with mission contracts, action guards, and OS sandboxing. The root API is `process`, `sanitize`, `optimize`, `Agent`, and `anchor`; everything else lives in subpackages.
+Licensed under the **Apache License 2.0**.
 
-> Developer preview - pin `asha==0.4.2` in production. APIs may change before 1.0.0.
-
----
-
-## Start here
-
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](getting-started.md) | Install and first example |
-| [Quickstart](quickstart.md) | 5-minute walkthrough |
-| [ANCHOR Runtime](anchor.md) | Mission governance for agents |
-| [API Reference](api-reference.md) | `process`, `sanitize`, `optimize`, `Agent`, `anchor` |
-| [Core Concepts](core-concepts.md) | Modes, results, policy |
-| [Examples](examples.md) | Common patterns |
+!!! warning "Developer preview (v0.4.2)"
+    Pre-1.0 — APIs may change. Install with `pip install asha-ai` (lite path; no API key or model download).
+    See **[status.md](status.md)** for what works vs preview vs experimental. Pin a version only when you need a frozen pilot.
 
 ---
 
-## How it works
+## Tutorial
 
-```
-Input prompt
-    → Security (PII + threats)
-    → Compile (internal IR → structured prompt)
-    → Optimize (token compression)
-    → ProcessResult
-```
+Learning-oriented — one path from install to a working result.
 
-For LLM apps, add `wrap_llm(client)` or use `Agent` to preprocess before generation.
+- **[Tutorial](tutorial.md)** — install ASHA, process a prompt, wrap a client, govern a mock agent
 
-For autonomous agents, use `anchor(agent)` for mission-aware governance.
+## How-to guides
 
----
+Task-oriented — solve one problem when you already know the basics.
 
-## Public imports
+- [Integrations](integrations.md) — FastAPI, LangChain, Instructor, and related middleware
+- [Security](security.md) — PII masking, threat checks, fail-closed modes
+- [Optimization](optimization.md) — token compression and budgets
+- [Debugging](debugging.md) — `trace=True`, diffs, degraded results
+- [Troubleshooting](troubleshooting.md) — common failures and fixes
+- [Performance](performance.md) — run benchmarks and tune latency vs security
+- [Migration v0.4](migration-v0.4.md) — upgrade from 0.3.x and PrivySHA → ASHA rename
 
-```python
-# Root
-from asha import process, sanitize, optimize, Agent, anchor
+## Reference
 
-# Common advanced imports
-from asha.integrations import wrap_llm
-from asha.runtime.anchor import anchor_any
-from asha.types import ProcessResult
-from asha.core.policy_config import PolicyConfig
-from asha.runtime import PromptProcessor
-```
+Lookup-oriented — signatures, examples catalog, versioning facts.
 
-`wrap_llm`, `Pipeline`, `Processor`, and lazy root exports were **removed in v0.4.1**. See [deprecations.md](deprecations.md).
+- [API reference](api-reference.md)
+- [Examples](examples.md)
+- [Versioning](versioning.md)
+- [Deprecations](deprecations.md)
 
----
+## Explanation
 
-## Documentation map
+Understanding-oriented — design, rationale, and project direction.
 
-### Essentials
-
-- [ANCHOR](anchor.md) - agent governance, sandbox, adapters
-- [Security](security.md) - PII masking, injection checks, modes
-- [Optimization](optimization.md) - token reduction
-- [Integrations](integrations.md) - FastAPI, LangChain, Instructor, etc.
-- [Debugging](debugging.md) - `trace=True`, diffs
-
-### Architecture
-
-- [Architecture](architecture.md) - package layout and layer rules
-- [Pipeline](pipeline.md) - processing flow (3 engines, not 7 stages)
-- [Prompt IR](prompt-ir.md) - internal representation (not public API)
-- [Routing](routing.md) - `Agent(routing_config=...)`
-
-### Operations
-
-- [Benchmarks](benchmarks.md) - performance numbers
-- [Performance Tuning](performance-tuning.md) - speed vs security
-- [Troubleshooting](troubleshooting.md) - common issues
-- [FAQ](faq.md)
-
-### Project
-
-- [Developer Preview](developer-preview.md) - scope and limitations
-- [Versioning](versioning.md) - release policy
-- [Migration v0.4](migration-v0.4.md) - upgrade from 0.3.x
-- [Deprecations](deprecations.md) - removed APIs
+- [Core concepts](core-concepts.md)
+- [Architecture](architecture.md)
+- [ANCHOR](anchor.md)
+- [Compliance](compliance.md)
 - [Roadmap](roadmap.md)
+- [Production readiness (0.4.2)](production-readiness.md)
+- [Experimental features](experimental-features.md)
+
+## Support
+
+- [Support policy](support.md) — channels, expectations, what to include in reports
+- [GitHub Discussions](https://github.com/AjayRajan05/ASHA/discussions) · [Slack](https://join.slack.com/t/asha-community/shared_invite/zt-45h11ellh-yY~YG4BL8W~TvxsMXSgPzw)
+- [FAQ](faq.md)
 - [Contributing](contributing.md)
-
----
-
-## Install
-
-```bash
-pip install asha   # Python 3.10+
-pip install -e ".[docs]" && mkdocs serve   # local docs
-```
+- [Status](status.md)

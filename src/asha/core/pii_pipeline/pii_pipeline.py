@@ -83,7 +83,7 @@ class PIIPipeline:
                     "high_confidence": 0.85,
                     "medium_confidence": 0.6,
                     "low_confidence": 0.3,
-                    "minimum_confidence": 0.2,
+                    "minimum_confidence": 0.55,
                 },
             },
             "context": {
@@ -101,13 +101,27 @@ class PIIPipeline:
             "masking": {
                 "default_strategy": "hash",
                 "entity_type_strategies": {
-                    "email": "hash",
-                    "phone": "partial",
-                    "ssn": "preserve_length",
-                    "credit_card": "preserve_length",
+                    "email": "stable_hash",
+                    "phone": "stable_hash",
+                    "ssn": "stable_hash",
+                    "credit_card": "stable_hash",
+                    "aadhaar": "stable_hash",
+                    "pan": "stable_hash",
+                    "gstin": "stable_hash",
                     "name": "hash",
+                    "address": "hash",
+                },
+                "stable_tokens": {
+                    "email": "[EMAIL_HASH]",
+                    "phone": "[PHONE_HASH]",
+                    "ssn": "[SSN_HASH]",
+                    "credit_card": "[CREDIT_CARD_HASH]",
+                    "aadhaar": "[AADHAAR_HASH]",
+                    "pan": "[PAN_HASH]",
+                    "gstin": "[GSTIN_HASH]",
                 },
                 "hash_salt": "asha_pii_masking_v1",
+                "min_mask_confidence": 0.55,
             },
             "integrity": {
                 "integrity_thresholds": {

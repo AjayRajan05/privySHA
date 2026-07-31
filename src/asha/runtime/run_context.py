@@ -25,7 +25,7 @@ class RunContext:
     compile: bool
     optimize: bool
     token_budget: int = 1200
-    pii_mode: str = "rule"
+    pii_mode: str = "hybrid"
     reversible: bool = False
     preserve_intent: bool = False
     security_level: str = "medium"

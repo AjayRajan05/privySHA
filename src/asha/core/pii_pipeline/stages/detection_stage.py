@@ -33,14 +33,17 @@ class DetectionStage(BaseStage):
 
         # Detection configuration
         self.detection_config = {
+            "mode": "hybrid",
             "enable_regex": True,
             "enable_heuristics": True,
             "enable_dictionary": True,
             "enable_contextual": True,
+            "enable_ner": True,
             "parallel_execution": True,
             "min_confidence": 0.3,
             "overlap_threshold": 0.5,  # For entity deduplication
         }
+        self._ner_detector = None
 
     def execute(self, context: PIIContext) -> StageResult:
         """
@@ -53,7 +56,36 @@ class DetectionStage(BaseStage):
             StageResult with detected entities
         """
         text = context.current_text
-        config = context.config.get("detection", self.detection_config)
+        config = dict(self.detection_config)
+        config.update(context.config.get("detection", {}))
+
+        # Locale detection (non-generative) — stored for downstream stages.
+        try:
+            from ...security.locale_detect import detect_locale
+
+            locale_guess = detect_locale(text)
+            context.config.setdefault("locale", {})
+            context.config["locale"] = {
+                "locale": locale_guess.locale,
+                "confidence": locale_guess.confidence,
+                "source": locale_guess.source,
+            }
+        except Exception:
+            pass
+
+        mode = str(config.get("mode", "hybrid")).lower()
+        if mode in ("lite", "rule"):
+            config["enable_heuristics"] = False
+            config["enable_dictionary"] = False
+            config["enable_contextual"] = False
+            config["enable_ner"] = False
+        elif mode == "ml_only":
+            config["enable_heuristics"] = False
+            config["enable_dictionary"] = False
+            config["enable_contextual"] = False
+            config["enable_ner"] = True
+            # Keep regex as safety net when NER unavailable.
+            config["enable_regex"] = True
 
         # Run detectors in parallel
         all_entities = []
@@ -66,6 +98,11 @@ class DetectionStage(BaseStage):
         # Deduplicate entities
         deduplicated_entities = self._deduplicate_entities(
             all_entities, config)
+
+        # Never mask teaching/example.com addresses (or fragments thereof).
+        deduplicated_entities = self._drop_example_email_overlaps(
+            text, deduplicated_entities
+        )
 
         # Sort entities by position
         deduplicated_entities.sort(key=lambda e: e.start)
@@ -124,6 +161,9 @@ class DetectionStage(BaseStage):
                     self.contextual_detector.detect, text
                 )
 
+            if config.get("enable_ner", False):
+                futures["ner"] = executor.submit(self._run_ner, text)
+
             # Collect results
             for detector_name, future in futures.items():
                 try:
@@ -165,7 +205,46 @@ class DetectionStage(BaseStage):
             except Exception as e:
                 print(f"[Detection] Contextual detector failed: {e}")
 
+        if config.get("enable_ner", False):
+            try:
+                all_entities.extend(self._run_ner(text))
+            except Exception as e:
+                print(f"[Detection] NER detector failed: {e}")
+
         return all_entities
+
+    def _run_ner(self, text: str) -> List[PIIEntity]:
+        """Lazy spaCy NER layer (no-op when spaCy/model unavailable)."""
+        if self._ner_detector is None:
+            from ..components.detectors.ner_detector import SpacyNERDetector
+
+            self._ner_detector = SpacyNERDetector()
+        return list(self._ner_detector.detect(text))
+
+    def _drop_example_email_overlaps(
+        self, text: str, entities: List[PIIEntity]
+    ) -> List[PIIEntity]:
+        """Drop spans that overlap known placeholder/teaching emails."""
+        from ...security.patterns import is_example_email
+
+        protected: List[tuple[int, int]] = []
+        for match in re.finditer(
+            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text
+        ):
+            if is_example_email(match.group()):
+                protected.append(match.span())
+        if not protected:
+            return entities
+
+        kept: List[PIIEntity] = []
+        for entity in entities:
+            overlaps = any(
+                not (entity.end <= start or entity.start >= end)
+                for start, end in protected
+            )
+            if not overlaps:
+                kept.append(entity)
+        return kept
 
     def _deduplicate_entities(
         self, entities: List[PIIEntity], config: Dict[str, Any]
@@ -226,6 +305,8 @@ class DetectionStage(BaseStage):
             enabled.append("dictionary")
         if config.get("enable_contextual", True):
             enabled.append("contextual")
+        if config.get("enable_ner", False):
+            enabled.append("ner")
 
         return enabled
 
@@ -339,9 +420,40 @@ class HeuristicDetector:
 
         for pii_type, patterns in self.patterns.items():
             for pattern in patterns:
-                matches = re.finditer(pattern, text, re.IGNORECASE)
+                # Name heuristics MUST stay case-sensitive — IGNORECASE makes
+                # "[A-Z][a-z]+ [A-Z][a-z]+" match any two English words
+                # ("Please help", "me with", …).
+                flags = 0 if pii_type == "name" else re.IGNORECASE
+                if pii_type == "name":
+                    # finditer is non-overlapping; rejecting "Contact John"
+                    # would otherwise skip a later real "John Doe". Advance by
+                    # one char on reject so the true name can still match.
+                    pos = 0
+                    while pos < len(text):
+                        match = re.search(pattern, text[pos:], flags)
+                        if not match:
+                            break
+                        start = pos + match.start()
+                        end = pos + match.end()
+                        span = match.group().strip()
+                        if not _heuristic_name_ok(span):
+                            pos = start + 1
+                            continue
+                        entities.append(
+                            PIIEntity(
+                                text=match.group(),
+                                start=start,
+                                end=end,
+                                pii_type=pii_type,
+                                confidence=0.6,
+                                context=text[max(0, start - 20): end + 20],
+                                metadata={"detector": "heuristics"},
+                            )
+                        )
+                        pos = end
+                    continue
 
-                for match in matches:
+                for match in re.finditer(pattern, text, flags):
                     entity = PIIEntity(
                         text=match.group(),
                         start=match.start(),
@@ -349,10 +461,62 @@ class HeuristicDetector:
                         pii_type=pii_type,
                         confidence=0.6,  # Medium confidence for heuristics
                         context=text[max(0, match.start() - 20): match.end() + 20],
+                        metadata={"detector": "heuristics"},
                     )
                     entities.append(entity)
 
         return entities
+
+
+def _heuristic_name_ok(span: str) -> bool:
+    """Reject common non-name bigrams the capitalised pattern still catches."""
+    stop = {
+        "please",
+        "help",
+        "with",
+        "this",
+        "that",
+        "from",
+        "have",
+        "been",
+        "will",
+        "would",
+        "could",
+        "should",
+        "about",
+        "after",
+        "before",
+        "under",
+        "over",
+        "into",
+        "call",
+        "contact",
+        "send",
+        "read",
+        "write",
+        "analyze",
+        "explain",
+        "generate",
+        "summarize",
+        "difference",
+        "between",
+        "supervised",
+        "unsupervised",
+        "learning",
+        "customer",
+        "support",
+        "billing",
+        "issue",
+        "subscription",
+        "cancellation",
+        "quarterly",
+        "financial",
+        "report",
+    }
+    tokens = [t.lower().strip(".,!?;:") for t in span.split() if t.strip(".,!?;:")]
+    if len(tokens) < 2:
+        return False
+    return not any(t in stop for t in tokens)
 
 
 class DictionaryDetector:

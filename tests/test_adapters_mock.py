@@ -10,8 +10,9 @@ from asha.runtime.adapters.factory import AdapterFactory
 def test_mock_adapter_generate():
     adapter = AdapterFactory.create("mock")
     result = adapter.generate("Hello world")
-    assert result
     assert isinstance(result, str)
+    assert "Hello world" in result or result.strip() != ""
+    assert adapter.__class__.__name__ == "MockAdapter"
 
 
 @pytest.mark.parametrize(

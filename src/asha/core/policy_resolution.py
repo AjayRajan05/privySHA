@@ -76,7 +76,7 @@ def build_pipeline_config(
     compile: bool,
     optimize: bool,
     safety_mode: SafetyMode,
-    pii_mode: str = "rule",
+    pii_mode: str = "hybrid",
     reversible: bool = False,
     preserve_intent: bool = False,
     security_level: str = "medium",

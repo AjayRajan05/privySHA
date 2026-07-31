@@ -23,6 +23,7 @@ class MissionContract:
     created_at: float
     local_only: bool = False
     forbid_network_exfiltration: bool = False
+    low_confidence: bool = False
     allowed_read_paths: List[str] = field(default_factory=list)
     allowed_write_paths: List[str] = field(default_factory=list)
     forbidden_network_tokens: List[str] = field(default_factory=list)

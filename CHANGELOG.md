@@ -16,17 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Package rename** — `privysha` → `asha` on PyPI and in imports (`from asha import ...`).
 - **ANCHOR runtime** — mission-aware agent governance: action, memory, chain, and plan guards; human approval; OS sandbox (`auto` hooks or `subprocess`).
 - **Framework adapters** — CrewAI, LangChain, AutoGen, LlamaIndex, MCP, LangGraph, `asha.Agent`, and generic duck-typed agents via `anchor()` / `anchor_any()`.
+- **ANCHOR extras** — `asha-ai[crewai]`, `asha-ai[langchain]`, `asha-ai[langgraph]`, `asha-ai[llamaindex]`, `asha-ai[mcp]`, and meta `asha-ai[anchor]`.
+- **Mission-drift gate** — `tests/fixtures/anchor/mission_drift.jsonl` with CI coverage.
 - **CLI** — `asha` entry point (replaces `privysha`).
 
 ### Changed
 
 - Environment variables use `ASHA_*` prefix (`ASHA_DISABLE_ML`, `ASHA_ANCHOR_INTERACTIVE`, …).
-- CI, publish workflows, and smoke tests target `src/asha` and `asha` imports.
-- README and docs aligned with implemented sandbox modes (no unimplemented `docker`/kernel claims).
+- ANCHOR telemetry is **opt-in** (`ASHA_ANCHOR_TELEMETRY=1` / explicit path); isolation `docker`/`bwrap` deferred with clear errors.
+- CI optional-dep job installs `asha-ai[anchor]` and runs golden-path adapter + mission-drift tests headless.
+- Memory poisoning bands floored for short benign agent outputs; mission/intent loaders accept trained `pipeline` dumps.
+- README and docs include adapter support matrix (no unimplemented `docker`/kernel claims).
+- Productization: `SUPPORT.md`, issue/PR templates, docs support policy (Phase 4).
+- Pilot checklist for 0.4.2: [docs/production-readiness.md](docs/production-readiness.md) (1.0 remains deferred).
+- Document PII masking: `process` / `sanitize` / `optimize` accept file paths/bytes; `wrap_llm` masks local attachments before send (pypdf + python-docx on base install).
 
 ### Migration
 
-See README **Migration from PrivySHA** — pin `asha==0.4.2` in production.
+See [docs/migration-v0.4.md](docs/migration-v0.4.md) (includes package rename). Pin `asha==0.4.2` for pilots.
 
 ### Acknowledgments
 
@@ -54,7 +61,7 @@ See README **Migration from PrivySHA** — pin `asha==0.4.2` in production.
 
 ### Developer Preview
 
-Re-release track as **0.x developer preview**. APIs may change before 1.0.0. See [docs/developer-preview.md](docs/developer-preview.md).
+Re-release track as **0.x developer preview**. APIs may change before 1.0.0. See [docs/status.md](docs/status.md).
 
 ### Added
 - **AshaFit** - project-aware local LLM advisor (`recommend_local_model`, `asha recommend`)
@@ -62,7 +69,7 @@ Re-release track as **0.x developer preview**. APIs may change before 1.0.0. See
 - HuggingFace catalog with offline fallback; VRAM fit ranking
 - Router integration: `RoutingStrategy.LOCAL_PRIVACY`
 - `Agent(local_model="auto")`, `wrap_llm(..., auto_select_local_model=True)`
-- [examples/developer_preview_demo.py](examples/developer_preview_demo.py) - minimal no-keys demo
+- Interactive demos via Streamlit: `streamlit run examples/showcase/streamlit_app.py`
 
 ### Changed
 - Version **1.0.1 → 0.3.0** (semantic versioning: preview until stable 1.0)
@@ -105,7 +112,7 @@ consistently; benchmarks and CI enforce quality gates.
   verification, and masking
 - **Benchmark harness**: tiktoken metrics, expanded `sample_prompts.json` (10 cases),
   false-positive and fail-safe rate gates
-- **OpenTelemetry extra**: `pip install asha[otel]` with `enable_otel()` for
+- **OpenTelemetry extra**: `pip install asha-ai[otel]` with `enable_otel()` for
   optional stage span export
 - **Docs site**: full MkDocs Material config, GitHub Pages deploy workflow
 - **CI hardening**: coverage gate (55%), docs build, benchmark quality gates,
@@ -128,7 +135,7 @@ consistently; benchmarks and CI enforce quality gates.
 - **Publish trigger**: GitHub Release (published) or manual dispatch - not tag-only
 
 ### Release checklist (manual)
-- Configure GitHub `pypi` environment for trusted publishing (see `docs/publishing.md`)
+- Configure GitHub `pypi` environment for trusted publishing
 - Create GitHub Release `v1.0.0` after CI is green to trigger PyPI publish
 
 ---
@@ -187,7 +194,7 @@ drop-in API (`process`, `wrap_llm`, `optimize`, `sanitize`) for general use.
 - **Progressive Enhancement Architecture**: ML features now opt-in with `pii_mode` parameter
 - **Lightweight Default**: No automatic model downloads, instant startup
 - **Multi-stage PII Pipeline**: Advanced detection in `core/pii_pipeline/`
-- **Hybrid PII Detector**: Optional ML-enhanced detection via `asha[ml]`
+- **Hybrid PII Detector**: Optional ML-enhanced detection via `asha-ai[ml]`
 
 ### Changed
 - **Modular pipeline layout**: `pipeline/` package replaces monolithic `pipeline.py`

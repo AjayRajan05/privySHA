@@ -1,221 +1,152 @@
 # ASHA
 
-**Adaptive Security for Human-AI systems**
+**ASHA is the security layer that sits between your application and every LLM, protecting prompts before inference and governing agents after inference.**
 
-Mission-aware agent governance for autonomous AI: one line to secure any agent.
-
-ASHA is a Python library built for the Human-AI era. Its flagship runtime is **ANCHOR** - it keeps autonomous agents aligned with the user's original goal, blocks unauthorized actions, and sandboxes OS-level side effects. ASHA also includes drop-in prompt security (`process`) and client wrapping (`wrap_llm`) for traditional LLM applications.
-
-> **v0.4.2**: renamed from PrivySHA. Pin `asha==0.4.2` in production. See [docs/developer-preview.md](docs/developer-preview.md).
+> **Developer preview (v0.4.2).** Pre-1.0: APIs may change.
+> Install with `pip install asha-ai`. For long-lived pilots, pin the version you tested (see [docs/status.md](docs/status.md)).
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue)](https://www.python.org/)
-[![PyPI](https://img.shields.io/badge/pypi-0.4.2-orange)](https://pypi.org/project/asha/)
+[![PyPI](https://img.shields.io/badge/pypi-0.4.2-orange)](https://pypi.org/project/asha-ai/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue)](https://ajayrajan05.github.io/privySHA/)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue)](https://ajayrajan05.github.io/ASHA/)
+[![Discussions](https://img.shields.io/badge/GitHub-Discussions-black?logo=github)](https://github.com/AjayRajan05/ASHA/discussions)
+[![Slack](https://img.shields.io/badge/Slack-Join-4A154B?logo=slack&logoColor=white)](https://join.slack.com/t/asha-community/shared_invite/zt-45h11ellh-yY~YG4BL8W~TvxsMXSgPzw)
 
----
+## Quickstart
+
+```bash
+pip install asha-ai
+```
+
+PyPI distribution name is **`asha-ai`** (the name `asha` is taken by an unrelated project). Imports stay `from asha import ...`.
+
+No API key and no model download required for the quickstart.
+
+```python
+from asha import process
+
+result = process("Contact john@example.com for data analysis", mode="balanced")
+print(result.output)   # PII masked, prompt compiled + optimized
+print(result.security) # detection summary
+print(result.metrics)  # token / stage metrics
+```
 
 ## Why ASHA
 
-Autonomous agents can drift from their mission, call tools they should not, leak data over the network, or poison long-term memory. ASHA's **ANCHOR** runtime wraps your agent:
+- **Mission-scoped agent governance** — `anchor()` compiles an immutable mission contract and gates every tool call against it (`ALLOW` / `WARN` / `BLOCK` / `REVIEW`).
+- **Layered prompt-injection and PII defense** — fail-closed calibrated detection with heuristic fallbacks on a lite install, not a single regex list.
+- **Tool-execution sandbox (preview)** — in-process side-effect hooks by default (`isolation="auto"`); stronger child-process isolation with `isolation="hard"`. Container backends (`docker` / `bwrap`) are not implemented yet.
+- **Install-time cost control** — base install includes text-document extractors for PII masking; pay only for heavier extras you need (`fast`, `hardened`, providers, `asha-ai[anchor]`).
+- **One-line client wrapping** — `wrap_llm(openai.OpenAI())` preprocesses prompts and local file attachments without rewriting your app.
 
-```
-User prompt  →  Mission Contract (immutable)  →  governed agent.run()
-                      ↓
-        Action / memory / chain / plan guards  →  ALLOW | WARN | BLOCK | REVIEW
-                      ↓
-        Process sandbox (hooks or subprocess)  →  execution or halt
-```
+## Install tiers
 
-**One line adoption:**
+| Install | What you get | Dependency cost |
+|---------|--------------|-----------------|
+| `pip install asha-ai` | **Recommended for everyone** — core APIs + lite/heuristic detectors + text PDF/DOCX extraction for PII masking | pydantic, tiktoken, requests, click, pypdf, python-docx |
+| `pip install asha-ai[fast]` | Faster pattern matching | + `pyahocorasick` |
+| `pip install asha-ai[hardened]` | Optional classical ML detectors (models auto-download on first use) | + torch / transformers / sklearn stack |
+| `pip install asha-ai[anchor]` | All ANCHOR framework adapters (CrewAI, LangChain, LangGraph, LlamaIndex, MCP) | + framework packages |
+
+Other common extras: `asha-ai[openai]`, `asha-ai[integrations]`, `asha-ai[ml]`, or per-framework `asha-ai[crewai]` / `asha-ai[langchain]` / `asha-ai[langgraph]` / `asha-ai[llamaindex]` / `asha-ai[mcp]`. Hardened weights are **not** required for the default lite path. Adapter matrix: [docs/anchor.md](docs/anchor.md).
+
+## Mission governance (`anchor`)
 
 ```python
-from asha import Agent, anchor
+from asha.runtime.anchor import AnchorRuntime
+from asha.exceptions import ASHAAnchorBlocked
 
-agent = Agent(provider="openai", model="gpt-4o-mini", tools=["read_file", "email"])
-agent = anchor(agent)
+runtime = AnchorRuntime(warn_policy="strict", interactive=False, risk_tolerance="LOW")
+runtime.initialize_mission(
+    "Analyze Q1 sales locally and write a report. Do not send data externally.",
+    context={
+        "available_tools": ["load_sales_data", "write_report", "send_email"],
+        "local_only": True,
+    },
+)
 
-agent.run("Generate the monthly sales report")
+# On-mission → allowed
+assert runtime.evaluate_action_request(
+    "tool_call",
+    {
+        "tool_name": "write_report",
+        "arguments": str({"args": (), "kwargs": {"report_content": "Q1 summary"}}),
+    },
+)
+
+# High-risk / off-policy → blocked
+try:
+    runtime.evaluate_action_request(
+        "tool_call",
+        {
+            "tool_name": "send_email",
+            "arguments": str({"args": (), "kwargs": {"to": "exfil@evil.com"}}),
+        },
+        raise_on_block=True,
+    )
+except ASHAAnchorBlocked as err:
+    print(err)
+    # ANCHOR blocked tool/action 'send_email': High-risk tool 'send_email'
+    # requires human approval before execution.
 ```
 
-No YAML policies. No separate proxy service. Works with mock providers (no API key) for local development.
-
----
-
-## Install
-
-```bash
-pip install asha
-```
-
-Python **3.10+** required.
-
-```bash
-pip install asha[openai]          # OpenAI Agent + wrap_llm
-pip install asha[integrations]    # LangChain, FastAPI, etc.
-pip install asha[ml]              # Hybrid ML PII (for process())
-```
-
-From source:
-
-```bash
-git clone https://github.com/AjayRajan05/privySHA.git
-cd privySHA
-pip install -e ".[dev]"
-```
-
----
-
-## ANCHOR in 60 seconds
+One-line adoption for an existing agent (headless-safe):
 
 ```python
 from asha import Agent, anchor
 
 agent = anchor(
     Agent(provider="mock", model="mock", tools=["read_file", "email"]),
-    risk_tolerance="LOW",
-    isolation="auto",
+    interactive=False,
 )
-
-result = agent.run("Generate monthly sales report from Q1 data")
-print(result)
+print(agent.run("Generate the monthly sales report"))
 ```
 
-### Isolation modes
+## Live demos
 
-| Mode | Use when |
-|------|----------|
-| `auto` (default) | In-process hooks: guarded `open()`, blocked network imports |
-| `hard` / `subprocess` | Tool runs in an isolated child process |
-| `off` | Disable sandbox enforcement (guards still apply) |
-
-```python
-agent = anchor(agent, isolation="hard")
-agent = anchor(agent, isolation="off")
+```bash
+pip install -e ".[demo]"
+streamlit run examples/showcase/streamlit_app.py
 ```
 
-Container backends (`docker`, `bwrap`) are on the roadmap; use `hard` today for stronger isolation.
+Interactive Streamlit app that runs the **real** ASHA APIs to show usefulness:
 
-Full reference: **[docs/anchor.md](docs/anchor.md)**
+1. **Scrub** dirty prompts/files (`process` / `sanitize`) so PII, secrets, and injections do not reach the model  
+2. **Leash** agents with ANCHOR (ALLOW local tools, BLOCK email/cloud exfil)  
+3. **Drop in** via `wrap_llm` / `Agent` (mock offline; Gemini/Ollama optional)
 
----
+Full page-by-page workflows: [examples/showcase/README.md](examples/showcase/README.md).
 
-## What ANCHOR governs
+## Docs
 
-| Layer | Enforcement |
-|-------|-------------|
-| **Mission** | Immutable contract from the user prompt |
-| **Actions** | Tool calls, shell, file writes, network requests |
-| **Memory** | Read/write scope, poisoning detection, quarantine |
-| **Plans** | ReAct / CoT planning text validated before tool execution |
-| **Chains** | Multi-step attack patterns via transition graph |
-| **LLM** | Pre/post gates on `wrap_llm` and streaming responses |
-| **Sandbox** | `socket`, `subprocess`, `open` writes, imports (in-process hooks or subprocess) |
+Full documentation (tutorial, how-tos, reference, explanation): **[docs site](https://ajayrajan05.github.io/ASHA/)** · [docs/index.md](docs/index.md) · [Status](docs/status.md) · [Roadmap](docs/roadmap.md)
 
-```python
-from asha.runtime.anchor import AnchorRuntime
+### Migration from PrivySHA
 
-runtime = AnchorRuntime(warn_policy="control", risk_tolerance="LOW")
+```bash
+pip uninstall privysha -y
+pip install asha-ai==0.4.2
 ```
 
-### Framework adapters
-
 ```python
-from asha.runtime.anchor.adapters import anchor_langchain, anchor_crewai, anchor_mcp
-```
-
----
-
-## Prompt security (included)
-
-```python
+# before: from privysha import process
 from asha import process
-
-result = process("Contact john@company.com; analyze this sales data")
-print(result.output)
 ```
 
-Wrap an existing SDK client:
+Env prefix is `ASHA_*`. Details: [docs/migration-v0.4.md](docs/migration-v0.4.md).
 
-```python
-from asha.integrations import wrap_llm
-import openai
+## Community & support
 
-client = wrap_llm(openai.OpenAI(), mode="balanced")
-```
-
----
-
-## Public API
-
-```python
-from asha import process, sanitize, optimize, Agent, anchor
-```
-
-| Symbol | Description |
-|--------|-------------|
-| `anchor()` | **Primary**: mission-aware runtime governance |
-| `Agent` | Preprocess + call an LLM adapter |
-| `process()` | Security → compile → optimize |
-| `sanitize()` | PII / threat detection only |
-| `optimize()` | Token compression only |
-| `wrap_llm()` | Transparent SDK wrapper |
-
-CLI:
-
-```bash
-asha "hello world"
-asha benchmark
-asha recommend
-```
-
----
-
-## Architecture
-
-```
-asha/
-├── runtime/
-│   ├── anchor/          # ANCHOR: mission governance, guards, isolation
-│   ├── agent.py
-│   └── processor.py
-├── core/                  # Security, compiler, optimization engines
-├── integrations/          # wrap_llm, framework middleware
-└── types/
-```
-
-Details: [docs/architecture.md](docs/architecture.md)
-
----
-
-## Documentation
-
-| Guide | Description |
-|-------|-------------|
-| [ANCHOR Runtime](docs/anchor.md) | Mission contracts, sandbox, isolation |
-| [Quickstart](docs/quickstart.md) | 5-minute walkthrough |
-| [API Reference](docs/api-reference.md) | Full signatures |
-| [Publishing](docs/publishing.md) | PyPI release process |
-
-```bash
-pip install -e ".[docs]"
-mkdocs serve
-```
-
----
-
-## Migration from PrivySHA
-
-| Before | After |
-|--------|-------|
-| `pip install privysha` | `pip install asha` |
-| `from privysha import anchor` | `from asha import anchor` |
-| `privysha` CLI | `asha` CLI |
-| `PRIVYSHA_*` env vars | `ASHA_*` env vars |
-| `PrivySHAAnchorBlocked` | `ASHAAnchorBlocked` |
-
----
+- **[GitHub Discussions](https://github.com/AjayRajan05/ASHA/discussions)** — questions, ideas, design talk (primary)
+- **[Slack](https://join.slack.com/t/asha-community/shared_invite/zt-45h11ellh-yY~YG4BL8W~TvxsMXSgPzw)** — optional community chat
+- **[GitHub Issues](https://github.com/AjayRajan05/ASHA/issues)** — bugs and feature requests
+- **Support policy:** [SUPPORT.md](SUPPORT.md)
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](LICENSE).
+
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/contributing.md](docs/contributing.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security: [SECURITY.md](SECURITY.md)
+- Roadmap: [docs/roadmap.md](docs/roadmap.md)

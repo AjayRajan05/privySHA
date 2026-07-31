@@ -21,7 +21,12 @@ def test_sql_in_documentation_context_not_blocked():
     text = "Documentation: use SELECT name FROM users WHERE id = 1 as an example."
     result = process(text, mode="balanced")
     assert isinstance(result, ProcessResult)
-    assert len(output_of(result)) > 0
+    out = output_of(result)
+    assert len(out) > 0
+    # Must not hard-fail the request; documentation context should remain usable.
+    assert result.degraded is False or out.strip() != ""
+    assert "[REQUEST_BLOCKED]" not in out
+    assert "careful assistant" in out.lower() or "documentation" in out.lower() or "select" in out.lower()
 
 
 def test_teaching_example_com_still_allowed():

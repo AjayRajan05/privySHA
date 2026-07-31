@@ -16,7 +16,7 @@
 
 import re
 import hashlib
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from .patterns import is_example_email
@@ -65,6 +65,16 @@ class PIIDetector:
             ],
             "ssn": ["ssn", "social security", "identification", "id number"],
             "credit_card": ["card", "credit", "payment", "visa", "mastercard", "amex"],
+            "aadhaar": [
+                "aadhaar",
+                "aadhar",
+                "uidai",
+                "uid",
+                "identity",
+                "kyc",
+            ],
+            "pan": ["pan", "permanent account", "income tax", "kyc"],
+            "gstin": ["gstin", "gst", "tax", "invoice", "business"],
             "zip_code": ["zip", "postal", "code"],
             "date_of_birth": ["birth", "born", "birthday", "dob", "age"],
             "api_key": ["api key", "secret key", "api_key", "secret", "token", "credential"],
@@ -82,6 +92,7 @@ class PIIDetector:
                 re.compile(r"\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
                 re.compile(r"\b\(\d{3}\)\s*\d{3}[-.]?\d{4}\b"),
                 re.compile(r"\b\d{3}-\d{3}-\d{4}\b"),
+                re.compile(r"\b(?:\+91[\s-]?)?[6-9]\d{9}\b"),
             ],
             "ssn": [
                 re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
@@ -91,6 +102,16 @@ class PIIDetector:
                 re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),
                 re.compile(r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b"),
                 re.compile(r"\b\d{16}\b"),
+            ],
+            "aadhaar": [
+                re.compile(r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b"),
+                re.compile(r"\b[2-9]\d{11}\b"),
+            ],
+            "pan": [
+                re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b"),
+            ],
+            "gstin": [
+                re.compile(r"\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b"),
             ],
             "name": [
                 re.compile(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b"),
@@ -148,6 +169,9 @@ class PIIDetector:
             "phone": "[PHONE_HASH]",
             "ssn": "[SSN_HASH]",
             "credit_card": "[CREDIT_CARD_HASH]",
+            "aadhaar": "[AADHAAR_HASH]",
+            "pan": "[PAN_HASH]",
+            "gstin": "[GSTIN_HASH]",
             "name": "[NAME_HASH]",
             "address": "[ADDRESS_HASH]",
             "zip_code": "[ZIP_HASH]",
@@ -174,45 +198,142 @@ class PIIDetector:
         context_boost = min(0.5, keyword_count * 0.1)
         return base_score + context_boost
 
+    def _find_flexible_span(self, text: str, literal: str) -> Optional[Tuple[int, int]]:
+        """Locate *literal* in *text* allowing zero-width / whitespace gaps."""
+        if not literal:
+            return None
+        pat = r"[\s\u200b-\u200d\ufeff\ufe00-\ufe0f]*".join(re.escape(c) for c in literal)
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            return m.start(), m.end()
+        return None
+
     def _detect_pii_with_context(self, text: str) -> List[PIIMatch]:
-        matches = []
+        from asha.core.text.canonicalize import canonicalize, expand_for_matching
 
-        for pii_type, patterns in self.patterns.items():
-            for pattern in patterns:
-                for match in pattern.finditer(text):
-                    if pii_type == "email" and is_example_email(match.group()):
-                        continue
+        canon = canonicalize(text)
+        scan_targets: List[str] = [text]
+        if canon and canon not in scan_targets:
+            scan_targets.append(canon)
+        for view in expand_for_matching(text):
+            if view not in scan_targets:
+                scan_targets.append(view)
 
-                    confidence = self._calculate_context_score(
-                        text, pii_type, match.start(), match.end()
-                    )
+        matches: List[PIIMatch] = []
+        seen_spans: set[Tuple[int, int, str]] = set()
 
-                    if pii_type == "credit_card" and not self._is_valid_credit_card(
-                        match.group()
-                    ):
-                        confidence *= 0.5
-                    elif pii_type == "email" and not self._is_valid_email(
-                        match.group()
-                    ):
-                        confidence *= 0.5
+        for scan_text in scan_targets:
+            for pii_type, patterns in self.patterns.items():
+                for pattern in patterns:
+                    for match in pattern.finditer(scan_text):
+                        if pii_type == "email" and is_example_email(match.group()):
+                            continue
 
-                    if pii_type == "ssn" and re.fullmatch(
-                        r"\d{3}-\d{2}-\d{4}", match.group().replace(" ", "-")
-                    ):
-                        confidence = max(confidence, 0.95)
+                        matched_literal = match.group()
+                        if scan_text is text:
+                            start, end = match.start(), match.end()
+                        else:
+                            located = self._find_flexible_span(text, matched_literal)
+                            if located:
+                                start, end = located
+                            else:
+                                start, end = 0, len(text)
 
-                    if confidence > 0.3:
-                        matches.append(
-                            PIIMatch(
-                                text=match.group(),
-                                pii_type=pii_type,
-                                start=match.start(),
-                                end=match.end(),
-                                confidence=confidence,
-                            )
+                        span_key = (start, end, pii_type)
+                        if span_key in seen_spans:
+                            continue
+                        seen_spans.add(span_key)
+
+                        matched_text = text[start:end]
+                        confidence = self._calculate_context_score(
+                            text, pii_type, start, end
+                        )
+                        confidence = self._context_word_boost(
+                            text, pii_type, start, end, confidence
                         )
 
+                        if pii_type == "credit_card" and not self._is_valid_credit_card(
+                            matched_literal
+                        ):
+                            confidence *= 0.45
+                        elif pii_type == "aadhaar" and not self._is_valid_aadhaar(
+                            matched_literal
+                        ):
+                            confidence *= 0.45
+                        elif pii_type == "pan" and not self._is_valid_pan(matched_literal):
+                            confidence *= 0.45
+                        elif pii_type == "gstin" and not self._is_valid_gstin(matched_literal):
+                            confidence *= 0.45
+                        elif pii_type == "email" and not self._is_valid_email(matched_literal):
+                            confidence *= 0.5
+
+                        if pii_type == "ssn" and re.fullmatch(
+                            r"\d{3}-\d{2}-\d{4}", matched_literal.replace(" ", "-")
+                        ):
+                            confidence = max(confidence, 0.95)
+
+                        if confidence > 0.3:
+                            matches.append(
+                                PIIMatch(
+                                    text=matched_text,
+                                    pii_type=pii_type,
+                                    start=start,
+                                    end=end,
+                                    confidence=confidence,
+                                )
+                            )
+
         return self._remove_overlaps(matches)
+
+    _CONTEXT_CUE_PHRASES: Tuple[Tuple[str, str, float], ...] = (
+        ("phone", "phone", 0.12),
+        ("mobile", "phone", 0.10),
+        ("ssn", "ssn", 0.15),
+        ("social security", "ssn", 0.15),
+        ("aadhaar", "aadhaar", 0.15),
+        ("aadhar", "aadhaar", 0.12),
+        ("email", "email", 0.12),
+        ("e-mail", "email", 0.10),
+        ("credit card", "credit_card", 0.15),
+        ("card number", "credit_card", 0.12),
+        ("pan", "pan", 0.12),
+        ("permanent account", "pan", 0.10),
+    )
+
+    def _context_word_boost(
+        self,
+        text: str,
+        pii_type: str,
+        match_start: int,
+        match_end: int,
+        confidence: float,
+    ) -> float:
+        """Boost confidence when context cues appear near a candidate span."""
+        context_window = 60
+        start = max(0, match_start - context_window)
+        end = min(len(text), match_end + context_window)
+        context = text[start:end].lower()
+        canon_ctx = ""
+        try:
+            from asha.core.text.canonicalize import canonicalize
+
+            canon_ctx = canonicalize(context).lower()
+        except Exception:
+            canon_ctx = context
+
+        boost = 0.0
+        for phrase, cue_type, weight in self._CONTEXT_CUE_PHRASES:
+            if cue_type != pii_type:
+                continue
+            if phrase in context or phrase in canon_ctx:
+                boost = max(boost, weight)
+
+        keywords = self.context_keywords.get(pii_type, [])
+        for kw in keywords:
+            if kw in context or kw in canon_ctx:
+                boost = max(boost, 0.08)
+
+        return min(1.0, confidence + boost)
 
     def _remove_overlaps(self, matches: List[PIIMatch]) -> List[PIIMatch]:
         if not matches:
@@ -235,20 +356,24 @@ class PIIDetector:
         return "@" in email and "." in email.split("@")[-1]
 
     def _is_valid_credit_card(self, card: str) -> bool:
-        digits = re.sub(r"[\s-]", "", card)
-        if not digits.isdigit() or len(digits) not in [13, 14, 15, 16, 19]:
-            return False
+        from .checksums import luhn_validate
 
-        total = 0
-        for i, digit in enumerate(reversed(digits)):
-            n = int(digit)
-            if i % 2 == 1:
-                n *= 2
-                if n > 9:
-                    n -= 9
-            total += n
+        return luhn_validate(card)
 
-        return total % 10 == 0
+    def _is_valid_aadhaar(self, value: str) -> bool:
+        from .checksums import verhoeff_validate
+
+        return verhoeff_validate(value)
+
+    def _is_valid_pan(self, value: str) -> bool:
+        from .checksums import pan_validate
+
+        return pan_validate(value)
+
+    def _is_valid_gstin(self, value: str) -> bool:
+        from .checksums import gstin_validate
+
+        return gstin_validate(value)
 
     def detect_pii_types(self, text: str) -> List[str]:
         matches = self._detect_pii_with_context(text)

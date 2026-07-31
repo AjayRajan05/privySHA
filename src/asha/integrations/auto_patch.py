@@ -121,6 +121,10 @@ def auto_patch(
     This is the viral adoption feature - enables true one-line integration.
     Patches major LLM SDKs to automatically apply ASHA processing.
 
+    .. warning::
+        Experimental in 0.4.2 — prefer ``wrap_llm()``. Emits
+        ``ASHAExperimentalWarning``.
+
     Args:
         enable: Enable/disable patching
         providers: List of providers to patch (openai, anthropic, gemini, etc.)
@@ -130,6 +134,10 @@ def auto_patch(
     Returns:
         Dictionary with patch status and statistics
     """
+    from asha.exceptions import warn_experimental
+
+    warn_experimental("auto_patch()")
+
     global _asha_enabled, _patch_warning_shown
 
     if providers is None:

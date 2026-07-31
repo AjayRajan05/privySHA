@@ -64,7 +64,9 @@ async def test_sanitize_async_masks_email():
 async def test_process_async_returns_process_result():
     result = await process_async("Summarize quarterly sales trends.")
     assert isinstance(result, ProcessResult)
-    assert len(result.output) > 0
+    out = result.output.lower()
+    assert len(out) > 0
+    assert "summarize" in out or "quarterly" in out or "sales" in out or "trends" in out
 
 
 async def test_process_async_exposes_metrics():

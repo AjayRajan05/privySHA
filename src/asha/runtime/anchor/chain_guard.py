@@ -1,35 +1,49 @@
-"""Chain guard with tool-name sequence detection."""
+# Copyright 2026 Ajay Rajan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Chain analysis over tool *categories* (Markov rarity), not name prefixes.
+
+Capability metadata is declared via ``tool_capabilities.register_tool``.
+Legacy name-prefix patterns remain only as a secondary corroborating signal.
+"""
 
 from __future__ import annotations
 
 import uuid
 import time
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional
 
 from .verdicts import ChainVerdict, Verdict
 from .types import ActionEvent, ChainEvent
 from .contracts import MissionContract
 from .payload_inspection import is_high_risk_tool, is_read_tool
+from .tool_capabilities import categorize_tool, get_tool_capabilities
+from .transition_model import get_transition_model, score_category_sequence
 
-
-# Tool-name suffix/prefix patterns for multi-step attack detection
-_SUSPICIOUS_TOOL_SEQUENCES: Tuple[Tuple[Sequence[str], Sequence[str], str], ...] = (
-    (("load_", "read_", "fetch_"), ("send_", "upload_", "network_"), "read_to_exfil"),
-    (("load_", "read_"), ("send_email", "upload_to_cloud"), "local_read_to_external"),
-    (("write_",), ("delete_", "remove_"), "write_then_destroy"),
-)
-
-# Legacy keyword patterns (non-tool actions)
-_KEYWORD_PATTERNS = (
-    ("exfiltration", ["read", "compress", "network"]),
-    ("recon_to_escalation", ["list", "read", "shell"]),
-)
+from asha.core.ml.calibration import Verdict as MLVerdict
 
 
 class ChainGuard:
-    """Chain analysis engine to detect malicious multi-step action sequences."""
+    """Chain analysis engine for multi-step action sequences."""
 
-    def normalize_chain(self, actions: List[ActionEvent], pattern: Optional[str] = None) -> ChainEvent:
+    def __init__(self, *, use_markov: bool = True) -> None:
+        self.use_markov = use_markov
+        self._last_score = None
+
+    def normalize_chain(
+        self, actions: List[ActionEvent], pattern: Optional[str] = None
+    ) -> ChainEvent:
         return ChainEvent(
             chain_id=str(uuid.uuid4()),
             actions=actions,
@@ -49,75 +63,79 @@ class ChainGuard:
         return names
 
     @staticmethod
-    def _matches_prefix(name: str, prefixes: Sequence[str]) -> bool:
-        lowered = name.lower()
-        return any(lowered.startswith(prefix) or prefix.rstrip("_") in lowered for prefix in prefixes)
+    def _categories(tool_names: List[str]) -> List[str]:
+        return [categorize_tool(name) for name in tool_names]
 
-    def _detect_tool_sequence(self, tool_names: List[str]) -> Optional[str]:
-        if len(tool_names) < 2:
-            return None
-        recent = tool_names[-5:]
-        for read_prefixes, exfil_prefixes, pattern_name in _SUSPICIOUS_TOOL_SEQUENCES:
-            read_idx = next(
-                (i for i, name in enumerate(recent) if self._matches_prefix(name, read_prefixes)),
-                None,
-            )
-            exfil_idx = next(
-                (
-                    i
-                    for i, name in enumerate(recent)
-                    if self._matches_prefix(name, exfil_prefixes) or is_high_risk_tool(name)
-                ),
-                None,
-            )
-            if read_idx is not None and exfil_idx is not None and exfil_idx > read_idx:
-                return pattern_name
-        return None
-
-    def evaluate_chain(self, history: List[ActionEvent], contract: MissionContract) -> ChainVerdict:
+    def evaluate_chain(
+        self, history: List[ActionEvent], contract: MissionContract
+    ) -> ChainVerdict:
         if len(history) < 2:
-            return ChainVerdict(Verdict.ALLOW, "Insufficient history for chain analysis.", 0.0)
+            return ChainVerdict(
+                Verdict.ALLOW, "Insufficient history for chain analysis.", 0.0
+            )
 
         tool_names = self._tool_names(history)
-        sequence = self._detect_tool_sequence(tool_names)
-        if sequence:
-            verdict = Verdict.BLOCK
-            reason = f"Detected suspicious tool chain: {sequence}"
-            risk_score = 1.0
-            if contract.risk_tolerance in ["HIGH", "CRITICAL"]:
-                verdict = Verdict.REVIEW
-                risk_score = 0.85
-            return ChainVerdict(verdict, reason, risk_score)
+        categories = self._categories(tool_names)
 
-        # Local read followed by high-risk tool under local-only mission
+        # --- Primary: Markov rarity over capability categories ---
+        if self.use_markov and len(categories) >= 2:
+            score = score_category_sequence(categories)
+            self._last_score = score
+            verdict_ml = score["verdict"]
+            rarest = score.get("rarest")
+            min_p = float(score["min_transition_probability"])
+
+            if verdict_ml is MLVerdict.BLOCK:
+                reason = "Anomalous tool-category transition"
+                if rarest:
+                    reason = (
+                        f"Anomalous transition {rarest[0]}→{rarest[1]} "
+                        f"(p={rarest[2]:.4f})"
+                    )
+                v = Verdict.BLOCK
+                risk = 1.0
+                if contract.risk_tolerance in ("HIGH", "CRITICAL"):
+                    v = Verdict.REVIEW
+                    risk = 0.85
+                return ChainVerdict(v, reason, risk)
+
+            if verdict_ml is MLVerdict.REVIEW:
+                reason = "Unusual tool-category sequence — review required"
+                if rarest:
+                    reason = (
+                        f"Unusual transition {rarest[0]}→{rarest[1]} "
+                        f"(p={min_p:.4f}) — review required"
+                    )
+                return ChainVerdict(Verdict.REVIEW, reason, max(0.6, 1.0 - min_p))
+
+        # --- Capability hard rules (explicit flags, not name prefixes) ---
+        if len(tool_names) >= 2:
+            caps_seq = [get_tool_capabilities(n) for n in tool_names]
+            earlier_read = any(c.reads_data for c in caps_seq[:-1])
+            last = caps_seq[-1]
+            if earlier_read and last.network_egress:
+                if contract.local_only or contract.forbid_network_exfiltration:
+                    return ChainVerdict(
+                        Verdict.BLOCK,
+                        "Data-read capability followed by network-egress tool.",
+                        1.0,
+                    )
+            if any(c.writes_data for c in caps_seq[:-1]) and last.destructive:
+                return ChainVerdict(
+                    Verdict.BLOCK,
+                    "Write capability followed by destructive tool.",
+                    1.0,
+                )
+
+        # Local-only + high-risk (legacy helper, still useful)
         if contract.local_only and len(tool_names) >= 2:
-            if any(is_read_tool(name) for name in tool_names[:-1]) and is_high_risk_tool(tool_names[-1]):
+            if any(is_read_tool(name) for name in tool_names[:-1]) and is_high_risk_tool(
+                tool_names[-1]
+            ):
                 return ChainVerdict(
                     Verdict.BLOCK,
                     "Local data access followed by high-risk external tool.",
                     1.0,
-                )
-
-        recent_actions = history[-5:]
-        action_summary = " ".join(
-            f"{a.action_type} {str(a.payload)}" for a in recent_actions
-        ).lower()
-
-        for pattern_name, keywords in _KEYWORD_PATTERNS:
-            match = True
-            last_idx = -1
-            for kw in keywords:
-                idx = action_summary.find(kw, last_idx + 1)
-                if idx == -1:
-                    match = False
-                    break
-                last_idx = idx
-            if match:
-                verdict = Verdict.BLOCK if contract.risk_tolerance not in ["HIGH", "CRITICAL"] else Verdict.REVIEW
-                return ChainVerdict(
-                    verdict,
-                    f"Detected malicious chain pattern: {pattern_name}",
-                    1.0 if verdict == Verdict.BLOCK else 0.8,
                 )
 
         return ChainVerdict(Verdict.ALLOW, "No malicious chains detected.", 0.0)

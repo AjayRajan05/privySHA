@@ -47,6 +47,7 @@ class HybridResult:
     confidence_score: float
     processing_time_ms: float
     method_breakdown: Dict[str, Any]
+    masking_map: Optional[Dict[str, str]] = None
 
 
 class HybridPIIDetector:
@@ -59,7 +60,7 @@ class HybridPIIDetector:
 
     def __init__(
         self,
-        pii_mode: str = "rule",
+        pii_mode: str = "hybrid",
         model_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         debug_enabled: bool = False,
@@ -68,12 +69,14 @@ class HybridPIIDetector:
         Initialize the hybrid PII detector.
 
         Args:
-            pii_mode: PII detection mode (rule, hybrid, ml_only)
+            pii_mode: PII detection mode (hybrid, lite, ml_only)
             model_name: Custom model name for ML detection
             config: Configuration dictionary
             debug_enabled: Enable debug logging
         """
-        self.pii_mode = pii_mode
+        from .ml_utils import validate_pii_mode
+
+        self.pii_mode = validate_pii_mode(pii_mode)
         self.config = config or {}
         self.debug_enabled = debug_enabled
 
@@ -149,6 +152,7 @@ class HybridPIIDetector:
             confidence_score=confidence_score,
             processing_time_ms=processing_time_ms,
             method_breakdown=method_breakdown,
+            masking_map=result.get("masking_map") or {},
         )
 
     def detect(self, text: str) -> List[PIIEntity]:
@@ -176,6 +180,6 @@ def detect_pii(
     Returns:
         HybridResult with detection results
     """
-    mode = "hybrid" if enable_ml else "rule"
+    mode = "hybrid" if enable_ml else "lite"
     detector = HybridPIIDetector(pii_mode=mode)
     return detector.detect_and_mask(text, mask_pii)

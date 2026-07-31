@@ -1,4 +1,29 @@
-from typing import Tuple, List
+# Copyright 2026 Ajay Rajan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Mission-alignment scoring for ANCHOR actions.
+
+Hard-block signals (forbidden action, resource-scope violation, high-risk
+tool under local-only) force score → 0.0 so no combination of medium-confidence
+penalties can average up into a false ALLOW. Soft multiplicative penalties
+remain for non-hard policy mismatches.
+"""
+
+from __future__ import annotations
+
+from typing import List, Tuple
+
 from .contracts import MissionContract
 from .types import ActionEvent
 from .payload_inspection import (
@@ -10,81 +35,101 @@ from .payload_inspection import (
     tool_name_policy_violations,
     validate_resource_scope,
 )
+from .tool_capabilities import get_tool_capabilities
+
 
 class AlignmentEvaluator:
-    """
-    Evaluates current actions against the Mission Contract to calculate an alignment score (0.0 to 1.0).
-    """
+    """Evaluate actions against the Mission Contract → alignment score in [0, 1]."""
 
-    def evaluate(self, action: ActionEvent, contract: MissionContract) -> Tuple[float, str, List[str]]:
-        """
-        Calculates mission continuity based on multiple relevance dimensions.
-        Returns: (score, explanation, risk_triggers)
-        """
+    def evaluate(
+        self, action: ActionEvent, contract: MissionContract
+    ) -> Tuple[float, str, List[str]]:
         score = 1.0
         explanations: List[str] = []
         triggers: List[str] = []
+        hard_block = False
 
         action_type = action.action_type
-        tool_name = str(action.payload.get("tool_name", "")) if action_type == "tool_call" else ""
+        tool_name = (
+            str(action.payload.get("tool_name", ""))
+            if action_type == "tool_call"
+            else ""
+        )
 
-        # 0. High-risk / exfiltration tools under local-only missions
-        if action_type == "tool_call" and tool_name:
-            if contract.local_only or contract.forbid_network_exfiltration:
-                if is_high_risk_tool(tool_name) and not is_mission_local_tool(tool_name, contract):
-                    score = 0.0
-                    msg = (
-                        f"Tool '{tool_name}' performs external or destructive side-effects "
-                        "and is blocked under the current mission scope."
-                    )
-                    explanations.append(msg)
-                    triggers.append(msg)
+        def _hard(msg: str) -> None:
+            nonlocal score, hard_block
+            hard_block = True
+            score = 0.0
+            explanations.append(msg)
+            triggers.append(msg)
 
-            name_violations = tool_name_policy_violations(tool_name, contract.forbidden_actions)
-            if name_violations and not is_mission_local_tool(tool_name, contract):
-                score = 0.0
-                detail = ", ".join(name_violations)
-                msg = f"Tool '{tool_name}' matches forbidden capability token(s): {detail}."
-                explanations.append(msg)
-                triggers.append(msg)
-        
-        # 1. Action/Tool Relevance
+        # --- Hard overrides (independent signals; cannot be averaged away) ---
+
+        # Forbidden action type
         if action_type in contract.forbidden_actions:
-            score = 0.0
-            msg = f"Action '{action_type}' is explicitly forbidden."
-            explanations.append(msg)
-            triggers.append(msg)
-        elif tool_name and tool_name in contract.forbidden_actions:
-            score = 0.0
-            msg = f"Tool '{tool_name}' is explicitly forbidden."
-            explanations.append(msg)
-            triggers.append(msg)
-        elif contract.allowed_tools and action_type not in contract.allowed_tools:
-            if action_type == "tool_call":
-                if tool_name not in contract.allowed_tools:
-                    score = 0.0
-                    msg = f"Tool '{tool_name}' is not in allowed tools list."
-                    explanations.append(msg)
-                    triggers.append(msg)
-            else:
-                score *= 0.8
-                explanations.append(f"Action '{action_type}' is not recognized as an allowed tool.")
-        
+            _hard(f"Action '{action_type}' is explicitly forbidden.")
+
+        # High-risk / network-egress under local-only (name helpers + capabilities)
+        if action_type == "tool_call" and tool_name and not hard_block:
+            caps = get_tool_capabilities(tool_name)
+            local_restricted = contract.local_only or contract.forbid_network_exfiltration
+            high_risk = is_high_risk_tool(tool_name) or caps.network_egress or caps.destructive
+            if local_restricted and high_risk and not is_mission_local_tool(tool_name, contract):
+                _hard(
+                    f"Tool '{tool_name}' performs external or destructive side-effects "
+                    "and is blocked under the current mission scope."
+                )
+
+            name_violations = tool_name_policy_violations(
+                tool_name, contract.forbidden_actions
+            )
+            if name_violations and not is_mission_local_tool(tool_name, contract):
+                detail = ", ".join(name_violations)
+                _hard(
+                    f"Tool '{tool_name}' matches forbidden capability token(s): {detail}."
+                )
+
+            if tool_name in contract.forbidden_actions:
+                _hard(f"Tool '{tool_name}' is explicitly forbidden.")
+
+        # Allowed-tools allowlist miss → hard block for tool_call
+        if (
+            not hard_block
+            and contract.allowed_tools
+            and action_type == "tool_call"
+            and tool_name
+            and tool_name not in contract.allowed_tools
+        ):
+            _hard(f"Tool '{tool_name}' is not in allowed tools list.")
+
         metadata = extract_inspection_metadata(action.payload)
 
-        # 2. Resource-scoped read/write permissions
-        if action_type == "tool_call" and tool_name:
+        # Resource-scope violation → hard block
+        if (
+            not hard_block
+            and action_type == "tool_call"
+            and tool_name
+        ):
             scope_violation = validate_resource_scope(tool_name, metadata, contract)
             if scope_violation is not None:
-                score = 0.0
-                msg = (
+                _hard(
                     f"Resource scope violation: {scope_violation.term} on "
                     f"{scope_violation.field}='{scope_violation.value}'"
                 )
-                explanations.append(msg)
-                triggers.append(msg)
 
-        # 3. Domain & policy relevance (structured metadata only)
+        if hard_block:
+            explanation = " | ".join(explanations)
+            return 0.0, explanation, triggers
+
+        # --- Soft signals (multiplicative; cannot alone force ALLOW over hard) ---
+
+        if contract.allowed_tools and action_type not in contract.allowed_tools:
+            if action_type != "tool_call":
+                score *= 0.8
+                explanations.append(
+                    f"Action '{action_type}' is not recognized as an allowed tool."
+                )
+
         if action_type == "tool_call":
             forbidden_matches = find_forbidden_metadata_matches(
                 metadata,
@@ -100,16 +145,18 @@ class AlignmentEvaluator:
             )
 
         if forbidden_matches:
+            # Soft penalty only when not already a hard capability match.
             score *= 0.3 ** len(forbidden_matches)
             detail = format_forbidden_matches(forbidden_matches)
             explanations.append("Metadata policy violations: " + "; ".join(detail))
             triggers.extend(detail)
 
-        # 4. Objective & Side-Effect Relevance
         if any(keyword in action_type for keyword in ["write", "update", "delete", "send"]):
             if contract.risk_tolerance == "LOW":
                 score *= 0.7
-                explanations.append("State-mutating action encountered under LOW risk tolerance.")
+                explanations.append(
+                    "State-mutating action encountered under LOW risk tolerance."
+                )
         elif (
             action_type == "tool_call"
             and tool_name
@@ -121,13 +168,20 @@ class AlignmentEvaluator:
         elif (
             action_type == "tool_call"
             and tool_name
-            and any(keyword in tool_name.lower() for keyword in ["write", "update", "delete", "send"])
+            and any(
+                keyword in tool_name.lower()
+                for keyword in ["write", "update", "delete", "send"]
+            )
             and contract.risk_tolerance == "LOW"
         ):
             score *= 0.7
-            explanations.append("State-mutating tool encountered under LOW risk tolerance.")
-        
-        explanation = " | ".join(explanations) if explanations else "Action aligns with mission parameters."
-        
-        final_score = max(0.0, min(1.0, score))
-        return final_score, explanation, triggers
+            explanations.append(
+                "State-mutating tool encountered under LOW risk tolerance."
+            )
+
+        explanation = (
+            " | ".join(explanations)
+            if explanations
+            else "Action aligns with mission parameters."
+        )
+        return max(0.0, min(1.0, score)), explanation, triggers

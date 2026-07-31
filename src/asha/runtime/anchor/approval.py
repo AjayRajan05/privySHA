@@ -115,6 +115,31 @@ class ApprovalEngine:
                     verdict=verdict,
                     timestamp=time.time(),
                 )
+            # Headless: never pretend a human rejected. Permissive mode allows
+            # non-tool reviews (e.g. session memory mid-band); tool reviews that
+            # failed auto-allow stay blocked. Strict mode blocks pending review.
+            if not self.interactive:
+                if self.warn_policy == "permissive" and action is None:
+                    verdict = ApprovalVerdict(
+                        verdict=Verdict.ALLOW,
+                        reason=f"[PERMISSIVE HEADLESS] {reason}",
+                        reviewer="system_auto",
+                    )
+                else:
+                    verdict = ApprovalVerdict(
+                        verdict=Verdict.BLOCK,
+                        reason=(
+                            f"[HEADLESS] Review required; no human operator available. "
+                            f"{reason}"
+                        ),
+                        reviewer="system_auto",
+                    )
+                return ApprovalRecord(
+                    record_id=str(uuid.uuid4()),
+                    target_id=target_id,
+                    verdict=verdict,
+                    timestamp=time.time(),
+                )
             return self.request_approval(target_id, reason)
 
         if verdict_enum == Verdict.BLOCK and self.interactive:

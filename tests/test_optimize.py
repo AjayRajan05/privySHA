@@ -5,9 +5,11 @@ from asha.types.results import OptimizeResult
 
 
 def test_optimize_returns_optimize_result():
-    result = optimize("Summarize quarterly sales trends.")
-    assert isinstance(result, OptimizeResult)
-    assert len(result.output) > 0
+    prompt = "Summarize quarterly sales trends."
+    result = optimize(prompt)
+    assert result.output == prompt
+    assert "summarize" in result.output.lower()
+    assert "sales" in result.output.lower()
 
 
 def test_optimize_trust_input_bypasses_compression():
@@ -19,18 +21,19 @@ def test_optimize_trust_input_bypasses_compression():
 
 def test_optimize_tokens_only_may_keep_pii():
     """optimize() does not run security - email may remain."""
-    result = optimize("Contact secret@company.com for help")
-    assert isinstance(result, OptimizeResult)
-    # tokens-only path; PII masking is not guaranteed
-    assert result.output
+    prompt = "Contact secret@company.com for help"
+    result = optimize(prompt)
+    assert "secret@company.com" in result.output
+    assert "help" in result.output
 
 
 def test_optimize_token_budget():
     long_prompt = "word " * 500
     result = optimize(long_prompt, token_budget=50)
-    assert isinstance(result, OptimizeResult)
     assert result.metrics is not None
-    assert result.output
+    assert result.metrics.tokens_saved > 0
+    assert result.metrics.token_reduction_pct > 0
+    assert "word" in result.output
 
 
 def test_optimize_empty_prompt():

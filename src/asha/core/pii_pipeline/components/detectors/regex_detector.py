@@ -3,7 +3,7 @@ Regex-based PII Detector - High precision pattern matching
 """
 
 import re
-from typing import List, Dict
+from typing import Dict, List, Optional, Tuple
 from ...stages.base_stage import PIIEntity
 from ....security.patterns import compile_pii_patterns, is_example_email
 
@@ -32,6 +32,9 @@ class RegexDetector:
             "phone": 0.90,
             "ssn": 0.95,
             "credit_card": 0.90,
+            "aadhaar": 0.92,
+            "pan": 0.88,
+            "gstin": 0.90,
             "ip_address": 0.85,
             "url": 0.80,
             "zip_code": 0.75,
@@ -53,46 +56,145 @@ class RegexDetector:
         Returns:
             List of detected PII entities
         """
+        from ....security.checksums import validate_pii_checksum
+        from ....text.canonicalize import canonicalize, expand_for_matching
+
+        entities: List[PIIEntity] = []
+        scan_texts = [text]
+        canon = canonicalize(text)
+        if canon and canon not in scan_texts:
+            scan_texts.append(canon)
+        for view in expand_for_matching(text):
+            if view not in scan_texts:
+                scan_texts.append(view)
+
+        for scan_text in scan_texts:
+            entities.extend(self._detect_on_text(scan_text, text, validate_pii_checksum))
+
+        return self._dedupe_entities(entities)
+
+    def _dedupe_entities(self, entities: List[PIIEntity]) -> List[PIIEntity]:
+        seen: set[Tuple[str, str]] = set()
+        out: List[PIIEntity] = []
+        for ent in sorted(entities, key=lambda e: (-e.confidence, e.start)):
+            key = (ent.pii_type, ent.text)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ent)
+        return out
+
+    def _find_flexible_span(self, text: str, literal: str) -> Optional[Tuple[int, int]]:
+        if not literal:
+            return None
+        pat = r"[\s\u200b-\u200d\ufeff\ufe00-\ufe0f]*".join(re.escape(c) for c in literal)
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            return m.start(), m.end()
+        return None
+
+    def _detect_on_text(
+        self,
+        scan_text: str,
+        original_text: str,
+        validate_pii_checksum,
+    ) -> List[PIIEntity]:
         entities = []
+        use_original_offsets = scan_text is original_text
 
         for pii_type, patterns in self.patterns.items():
             for pattern in patterns:
-                matches = pattern.finditer(text)
+                matches = pattern.finditer(scan_text)
 
                 for match in matches:
-                    # Additional validation for certain types
-                    if not self._validate_match(pii_type, match.group()):
+                    if pii_type == "email" and not self._validate_email(match.group()):
                         continue
+                    if pii_type == "ip_address" and not self._validate_ip_address(
+                        match.group()
+                    ):
+                        continue
+                    if pii_type == "phone" and not self._validate_phone(match.group()):
+                        continue
+
+                    base_conf = self.confidence_weights.get(pii_type, 0.8)
+                    base_conf = self._apply_context_boost(
+                        original_text, pii_type, match.start(), match.end(), base_conf
+                    )
+                    checksum_ok, algo = validate_pii_checksum(pii_type, match.group())
+                    if not checksum_ok:
+                        base_conf *= 0.45
+
+                    if use_original_offsets:
+                        start, end = match.start(), match.end()
+                    else:
+                        located = self._find_flexible_span(original_text, match.group())
+                        if located:
+                            start, end = located
+                        else:
+                            continue
 
                     entity = PIIEntity(
                         text=match.group(),
-                        start=match.start(),
-                        end=match.end(),
+                        start=start,
+                        end=end,
                         pii_type=pii_type,
-                        confidence=self.confidence_weights.get(pii_type, 0.8),
-                        context=self._get_context(
-                            text, match.start(), match.end()),
+                        confidence=base_conf,
+                        context=self._get_context(original_text, start, end),
                         metadata={
                             "detector": "regex",
                             "pattern": pattern.pattern,
-                            "validation_passed": True,
+                            "checksum_algo": algo,
+                            "checksum_valid": checksum_ok,
+                            "validation_passed": checksum_ok
+                            or algo == "none"
+                            or pii_type
+                            not in ("credit_card", "aadhaar", "pan", "gstin"),
+                            "scan_view": "canonical" if not use_original_offsets else "raw",
                         },
                     )
                     entities.append(entity)
 
         return entities
 
+    _CONTEXT_CUES: Tuple[Tuple[str, str, float], ...] = (
+        ("phone", "phone", 0.10),
+        ("mobile", "phone", 0.08),
+        ("ssn", "ssn", 0.12),
+        ("social security", "ssn", 0.12),
+        ("aadhaar", "aadhaar", 0.12),
+        ("aadhar", "aadhaar", 0.10),
+        ("email", "email", 0.10),
+        ("credit card", "credit_card", 0.12),
+        ("card", "credit_card", 0.08),
+        ("pan", "pan", 0.10),
+    )
+
+    def _apply_context_boost(
+        self,
+        text: str,
+        pii_type: str,
+        match_start: int,
+        match_end: int,
+        confidence: float,
+    ) -> float:
+        window = 60
+        start = max(0, match_start - window)
+        end = min(len(text), match_end + window)
+        context = text[start:end].lower()
+        boost = 0.0
+        for phrase, cue_type, weight in self._CONTEXT_CUES:
+            if cue_type == pii_type and phrase in context:
+                boost = max(boost, weight)
+        return min(1.0, confidence + boost)
+
     def _validate_match(self, pii_type: str, match_text: str) -> bool:
-        """Additional validation for certain PII types."""
+        """Additional validation for certain PII types (hard gates)."""
         if pii_type == "email":
             return self._validate_email(match_text)
-        elif pii_type == "credit_card":
-            return self._validate_credit_card(match_text)
         elif pii_type == "ip_address":
             return self._validate_ip_address(match_text)
         elif pii_type == "phone":
             return self._validate_phone(match_text)
-
         return True
 
     def _validate_email(self, email: str) -> bool:
@@ -169,18 +271,21 @@ class RegexDetector:
         return True
 
     def _validate_phone(self, phone: str) -> bool:
-        """Validate phone number format."""
-        # Remove non-digits
+        """Validate phone number format (US + Indian)."""
         digits = re.sub(r"\D", "", phone)
 
-        # Check for valid length (10 or 11 digits with country code)
+        # Indian mobile: 10 digits starting 6-9, optional 91 country code.
+        if len(digits) == 10 and digits[0] in "6789":
+            return True
+        if len(digits) == 12 and digits.startswith("91") and digits[2] in "6789":
+            return True
+
+        # US-style: 10 or 11 digits with country code
         if len(digits) not in [10, 11]:
             return False
 
-        # Check for reasonable area code (first 3 digits)
         if len(digits) >= 10:
             area_code = digits[-10:-7] if len(digits) == 11 else digits[:3]
-            # Area codes shouldn't start with 0 or 1
             if area_code.startswith(("0", "1")):
                 return False
 

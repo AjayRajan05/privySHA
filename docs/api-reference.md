@@ -221,7 +221,7 @@ result = processor.run("prompt", mode="balanced", profile=ExecutionProfile(...))
 
 ---
 
-## recommend_local_model()
+## recommend_local_model() (experimental)
 
 ```python
 from asha.runtime.local_advisor.advisor import recommend_local_model
@@ -240,11 +240,12 @@ report = recommend_local_model(
 )
 ```
 
-Preview API - see [local-advisor.md](local-advisor.md).
+!!! warning "Experimental — API may change"
+    See [experimental-features.md](experimental-features.md).
 
 ---
 
-## AdapterFactory
+## AdapterFactory (experimental)
 
 ```python
 from asha.runtime.adapters.factory import AdapterFactory
@@ -255,6 +256,8 @@ adapter = AdapterFactory.create_smart_routing({"chat": "gpt-4o-mini"})
 ```
 
 Providers: `openai`, `anthropic`, `gemini`, `ollama`, `huggingface`, `grok`, `mock`.
+
+Smart routing and factory helpers may change — see [experimental-features.md](experimental-features.md).
 
 ---
 
@@ -284,17 +287,28 @@ legacy = to_legacy_pipeline_dict(
 
 ## Environment variables
 
-| Variable | Used by |
+| Variable | Purpose |
 |----------|---------|
-| `OPENAI_API_KEY` | OpenAI adapter |
-| `ANTHROPIC_API_KEY` | Anthropic adapter |
-| `GOOGLE_API_KEY` | Gemini adapter |
-| `GROK_API_KEY` | Grok adapter |
-| `ASHA_MODEL` | `Agent.from_env()` |
-| `ASHA_TOKEN_BUDGET` | `Agent.from_env()` |
-| `ASHA_CACHE_DIR` | Local advisor catalog |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `GEMINI_API_KEY` / `GROK_API_KEY` | Provider adapters / live demos |
+| `ASHA_PROVIDER` / `ASHA_MODEL` | `Agent.from_env()` / adapter factory |
+| `ASHA_TOKEN_BUDGET` / `ASHA_TIMEOUT` / `ASHA_RETRIES` | Agent / adapter defaults |
+| `ASHA_PRIVACY` | `Agent.from_env()` privacy flag (`true`/`false`) |
+| `ASHA_MODELS_DIR` | Use a local models tree (skip default cache layout) |
+| `ASHA_MODELS_URL` | Override hardened-models download URL |
+| `ASHA_MODELS_ZIP` | Local zip fallback for the models bundle |
+| `ASHA_MODELS_CACHE` | Override cache directory (`~/.cache/asha/models` default) |
+| `ASHA_DISABLE_MODEL_DOWNLOAD` | `1` — never fetch models (CI / air-gap) |
+| `ASHA_DISABLE_ML` | Disable ML/NER paths where checked |
+| `ASHA_THRESHOLDS_PATH` | Override packaged detector thresholds YAML |
+| `ASHA_INJECTION_MODE` | Injection detector mode override |
+| `ASHA_ENABLE_HF_SAFETY` | Opt-in Hugging Face safety path |
+| `ASHA_OPTIMIZER_EMBEDDING` | Optimizer embedding mode hint |
+| `ASHA_ANCHOR_INTERACTIVE` | ANCHOR interactive approval (`0`/`1`) |
+| `ASHA_ANCHOR_WARN_POLICY` | ANCHOR warn policy (`strict` / `permissive` / …) |
+| `ASHA_ANCHOR_TELEMETRY` / `ASHA_ANCHOR_TELEMETRY_PATH` | Opt-in ANCHOR telemetry |
+| `ASHA_CACHE_DIR` | Local advisor catalog cache |
 
-`mode` is **not** read from env - set per call.
+`mode` is **not** read from env — set per call. See also [`.env.example`](https://github.com/AjayRajan05/ASHA/blob/main/.env.example).
 
 ---
 

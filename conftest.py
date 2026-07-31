@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Union
@@ -11,8 +10,8 @@ import pytest
 
 from asha.types.results import OptimizeResult, ProcessResult, SanitizeResult
 
-# Disable ML/safety classifier downloads during tests (fast, deterministic CI)
-os.environ.setdefault("ASHA_DISABLE_ML", "1")
+# Do NOT set ASHA_DISABLE_ML here — that previously skipped rule-based safety.
+# HF toxic-bert is opt-in via ASHA_ENABLE_HF_SAFETY=1.
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
@@ -44,6 +43,22 @@ def metrics_of(result: ResultType) -> dict:
     if isinstance(result, dict):
         return dict(result.get("metrics") or result)
     return {}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _preload_minilm_once():
+    """Load MiniLM once before any test can pollute torch/numpy.
+
+    Some CLI/transformers paths reload numpy and break subsequent torch
+    imports on Windows. Sharing one loaded SentenceTransformer keeps real
+    embedding gates available for the whole suite.
+    """
+    try:
+        from asha.core.ml.embeddings import get_encoder
+
+        get_encoder().ensure_loaded()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)

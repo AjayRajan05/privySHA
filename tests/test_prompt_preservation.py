@@ -40,13 +40,19 @@ def test_safe_prompt_no_pii_mode_off():
 
 
 def test_keyword_survival_mode_lite():
-    """mode='lite' produces some output derived from the original prompt."""
+    """mode='lite' keeps core task keywords after processing."""
     original = "Generate a Python function that sorts a list in ascending order."
     result = process(original, mode="lite")
     assert isinstance(result, ProcessResult)
-    assert len(result.output) > 0
-    # Note: lite mode still optimizes prompts; key terms may be rewritten.
-    # This test verifies the output is non-empty and is a string.
+    out = result.output.lower()
+    assert len(out) > 0
+    assert (
+        "python" in out
+        or "sort" in out
+        or "list" in out
+        or "ascending" in out
+        or "function" in out
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -176,12 +182,13 @@ def test_preserve_intent_returns_original_simple():
 
 
 def test_preserve_intent_false_may_rewrite():
-    """When preserve_intent=False (default), the optimizer may rewrite clean prompts."""
+    """When preserve_intent=False (default), processing still returns usable intent."""
     original = "Tell me about customer support best practices."
-    # We only assert we get some string back - the exact output is optimizer-dependent
     result = process(original, policy=PolicyConfig(preserve_intent=False))
     assert isinstance(result, ProcessResult)
-    assert len(result.output) > 0
+    out = result.output.lower()
+    assert len(out) > 0
+    assert "customer" in out or "support" in out or "practices" in out or "tell" in out
 
 
 def test_preserve_intent_pii_still_masked():

@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from asha.exceptions import warn_experimental
+
 from .catalog.fetcher import get_catalog
 from .hardware_profiler import detect_hardware
 from .probe import probe_recommendations
@@ -50,6 +52,9 @@ def recommend_local_model(
     """
     Recommend local LLM models for your compiled workload and hardware.
 
+    .. warning::
+        Experimental in 0.4.2 — emits ``ASHAExperimentalWarning``.
+
     Args:
         prompts: Sample prompts representing your application workload.
         prompts_file: Path to JSON/JSONL file of prompts.
@@ -67,6 +72,7 @@ def recommend_local_model(
     """
     global _last_report
 
+    warn_experimental("recommend_local_model / AshaFit")
     prompt_list = load_prompts(prompts=prompts, prompts_file=prompts_file)
     workload = profile_workload(prompt_list, mode=mode)
     hardware = detect_hardware(gpu=gpu, vram_gb=vram_gb, cpu_only=cpu_only)

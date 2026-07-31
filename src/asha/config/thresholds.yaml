@@ -1,0 +1,98 @@
+# ASHA detection thresholds — calibrated by training/train_hardened.py
+# Source corpus: asha_training_data_generators (synthetic). Re-calibrate after
+# adding real/public red-team data.
+
+_meta:
+  version: 1
+  note: "Calibrated from generator corpus; prefer REVIEW over ALLOW."
+
+injection:
+  safe_max: 0.0500
+  block_min: 0.9972
+  target_fpr: 0.0100
+  source: calibrated
+  data_source: local_data_improve_data_quality
+
+injection_lite:
+  safe_max: 0.3313
+  block_min: 0.9956
+  target_fpr: 0.0100
+  source: calibrated
+
+memory_poisoning:
+  safe_max: 0.5000
+  block_min: 0.8500
+  target_fpr: 0.0100
+  source: calibrated
+  data_source: local_data_improve_data_quality
+  note: "block_min floored to 0.85; safe_max raised — short benign agent outputs score ~0.45 on MiniLM RF"
+
+memory_poisoning_lite:
+  safe_max: 0.3890
+  block_min: 0.9726
+  target_fpr: 0.0100
+  source: calibrated
+
+secret_entropy:
+  safe_max: 0.40
+  block_min: 0.75
+  target_fpr: 0.01
+  source: provisional
+
+chain_transition:
+  safe_max: 0.088105
+  block_min: 0.017621
+  target_fpr: 0.01
+  higher_is_safer: true
+  source: calibrated
+
+mission_domain:
+  safe_max: 0.3500
+  block_min: 0.8500
+  target_fpr: 0.0500
+  higher_is_safer: false
+  source: calibrated
+  data_source: asha_training_data_generators
+
+mission_domain_lite:
+  safe_max: 0.8500
+  block_min: 0.8500
+  target_fpr: 0.0500
+  higher_is_safer: false
+  source: calibrated
+
+intent_extraction:
+  safe_max: 0.5500
+  block_min: 0.8500
+  target_fpr: 0.0500
+  higher_is_safer: false
+  source: calibrated
+
+intent_extraction_lite:
+  safe_max: 0.5500
+  block_min: 0.8500
+  target_fpr: 0.0500
+  higher_is_safer: false
+  source: calibrated
+
+alignment:
+  safe_max: 0.80
+  warn_max: 0.50
+  block_min: 0.30
+  target_fpr: 0.01
+  higher_is_safer: true
+  source: calibrated
+
+optimizer_similarity:
+  safe_max: 0.70
+  block_min: 0.70
+  target_fpr: 0.02
+  higher_is_safer: true
+  source: provisional
+
+optimizer_similarity_lite:
+  safe_max: 0.70
+  block_min: 0.70
+  target_fpr: 0.02
+  higher_is_safer: true
+  source: provisional

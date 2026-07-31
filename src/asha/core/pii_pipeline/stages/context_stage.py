@@ -120,17 +120,18 @@ class ContextStage(BaseStage):
         entities = context.entities.copy()
         config = context.config.get("context", self.context_config)
 
+        # Intent is a property of the text, not of surviving entities — always
+        # detect it (teaching placeholders may leave the entity list empty).
+        intent = self._detect_intent(context.current_text, config)
+
         if not entities:
             return StageResult(
                 success=True,
                 stage_name=self.stage_name,
                 execution_time_ms=0.0,
                 entities=[],
-                metadata={"no_entities": True},
+                metadata={"no_entities": True, "detected_intent": intent},
             )
-
-        # Step 1: Detect overall intent
-        intent = self._detect_intent(context.current_text, config)
 
         # Step 2: Apply intent-based adjustments
         entities = self._apply_intent_adjustments(entities, intent, config)
@@ -172,15 +173,22 @@ class ContextStage(BaseStage):
 
     def _detect_intent(self, text: str, config: Dict[str, Any]) -> str:
         """Detect the overall intent of the text"""
-        text_lower = text.lower()
+        # Strip emails/URLs so domain tokens like example.com do not trigger
+        # teaching intent for real contact data.
+        text_lower = re.sub(
+            r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}",
+            " ",
+            text.lower(),
+        )
+        text_lower = re.sub(r"https?://\S+", " ", text_lower)
         intent_scores: Dict[str, int] = {}
 
         for intent_name, intent_config in config.get("intent_patterns", {}).items():
             score = 0
 
-            # Check keywords
+            # Check keywords as whole words
             for keyword in intent_config.get("keywords", []):
-                if keyword in text_lower:
+                if re.search(rf"\b{re.escape(keyword)}\b", text_lower):
                     score += 1
 
             # Check patterns
@@ -198,6 +206,10 @@ class ContextStage(BaseStage):
 
         return "neutral"
 
+    _STRUCTURED_PII = frozenset(
+        {"email", "phone", "ssn", "credit_card", "aadhaar", "pan", "api_key", "jwt_token", "bearer_token"}
+    )
+
     def _apply_intent_adjustments(
         self, entities: List[PIIEntity], intent: str, config: Dict[str, Any]
     ) -> List[PIIEntity]:
@@ -212,8 +224,16 @@ class ContextStage(BaseStage):
         for entity in entities:
             original_confidence = entity.confidence
 
-            # Apply intent-specific adjustments
-            if intent == "teaching":
+            # Structured identifiers keep detection strength under teaching/docs
+            # intent — "example" often appears inside domains (example.com) without
+            # meaning the value is a placeholder.
+            if intent in ("teaching", "documentation") and entity.pii_type in self._STRUCTURED_PII:
+                from ...security.patterns import is_example_email
+
+                if entity.pii_type == "email" and is_example_email(entity.text):
+                    entity.confidence -= intent_config.get("confidence_reduction", 0.3)
+                # else: leave structured confidence untouched
+            elif intent == "teaching":
                 entity.confidence -= intent_config.get(
                     "confidence_reduction", 0.3)
             elif intent == "documentation":
@@ -337,24 +357,23 @@ class ContextStage(BaseStage):
         text_lower = context.current_text.lower()
         entity_text_lower = entity.text.lower()
 
-        # Rule: If it's clearly an example, mark as invalid
-        example_indicators = ["example", "sample", "test", "demo", "fake"]
-        for indicator in example_indicators:
-            if indicator in text_lower and indicator in entity_text_lower:
-                return False
+        from ...security.patterns import is_example_email
+
+        # True teaching placeholders (user@example.com) — not every *@example.com
+        if entity.pii_type == "email" and is_example_email(entity.text):
+            return False
+
+        # Soft types only: shared substring like "example" in a domain must not
+        # invalidate structured PII that should still be masked.
+        if entity.pii_type not in self._STRUCTURED_PII:
+            example_indicators = ["example", "sample", "test", "demo", "fake"]
+            for indicator in example_indicators:
+                if indicator in text_lower and indicator in entity_text_lower:
+                    return False
 
         # Rule: If confidence is too low after context adjustment, mark as invalid
         if entity.confidence < 0.3:
             return False
-
-        # Rule: Check for contradictory context
-        if entity.pii_type == "email":
-            # Check if it's clearly a placeholder
-            if any(
-                placeholder in entity_text_lower
-                for placeholder in ["example.com", "test.com", "sample.com"]
-            ):
-                return False
 
         return True
 
@@ -363,22 +382,20 @@ class ContextStage(BaseStage):
         text_lower = context.current_text.lower()
         entity_text_lower = entity.text.lower()
 
-        # Check for example indicators
-        example_indicators = ["example", "sample", "test", "demo", "fake"]
-        for indicator in example_indicators:
-            if indicator in text_lower and indicator in entity_text_lower:
-                return f"Contains example indicator: {indicator}"
+        from ...security.patterns import is_example_email
+
+        if entity.pii_type == "email" and is_example_email(entity.text):
+            return "Known placeholder/teaching email"
+
+        if entity.pii_type not in self._STRUCTURED_PII:
+            example_indicators = ["example", "sample", "test", "demo", "fake"]
+            for indicator in example_indicators:
+                if indicator in text_lower and indicator in entity_text_lower:
+                    return f"Contains example indicator: {indicator}"
 
         # Check confidence
         if entity.confidence < 0.3:
             return f"Low confidence: {entity.confidence:.2f}"
-
-        # Check for placeholders
-        if entity.pii_type == "email":
-            placeholders = ["example.com", "test.com", "sample.com"]
-            for placeholder in placeholders:
-                if placeholder in entity_text_lower:
-                    return f"Contains placeholder: {placeholder}"
 
         return "Unknown validation failure"
 
@@ -472,9 +489,9 @@ class ContextStage(BaseStage):
         elif any(word in text_lower for word in ["my", "personal", "private"]):
             intent = "personal"
 
-        # Apply basic adjustments
+        # Apply basic adjustments (structured PII kept intact under teaching)
         for entity in entities:
-            if intent == "teaching":
+            if intent == "teaching" and entity.pii_type not in self._STRUCTURED_PII:
                 entity.confidence *= 0.7
             elif intent == "personal":
                 entity.confidence *= 1.1

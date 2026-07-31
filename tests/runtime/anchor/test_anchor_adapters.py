@@ -114,7 +114,7 @@ class _LangChainExecutor:
 
     def invoke(self, input: dict, config=None) -> dict:
         self.tools[0].invoke(input)
-        return {"output": "loaded"}
+        return {"result": "ok", "output": "trend summary"}
 
     def run(self, input: str) -> str:
         return "loaded"
@@ -126,7 +126,7 @@ def test_langchain_detection_and_wrapping() -> None:
     runtime = AnchorRuntime(interactive=False)
     wrapped = anchor_langchain(executor, runtime=runtime)
     result = wrapped.invoke({"input": "Analyze trends locally."})
-    assert result["output"] == "loaded"
+    assert result["result"] == "ok"
     assert runtime.state.baseline_mission is not None
 
 
@@ -279,6 +279,8 @@ def test_anchored_tool_delegate_preserves_metadata() -> None:
 
 def test_anchor_any_dispatches_langchain() -> None:
     wrapped = anchor_any(_LangChainExecutor(), interactive=False)
+    result = wrapped.invoke({"input": "Analyze trends locally."})
+    assert result["result"] == "ok"
     assert hasattr(wrapped, "invoke")
 
 
@@ -291,9 +293,15 @@ def test_anchor_any_dispatches_mcp() -> None:
 
 def test_anchor_any_dispatches_autogen() -> None:
     wrapped = anchor_any(_AutoGenAgent(), interactive=False)
+    result = wrapped.generate_reply(
+        messages=[{"role": "user", "content": "Analyze locally."}]
+    )
+    assert "data loaded" in str(result)
     assert hasattr(wrapped, "generate_reply")
 
 
 def test_anchor_any_dispatches_llamaindex() -> None:
     wrapped = anchor_any(_LlamaIndexAgent(), interactive=False)
+    result = wrapped.query("Analyze trends locally.")
+    assert "data loaded" in str(result)
     assert hasattr(wrapped, "query")

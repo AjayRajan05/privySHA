@@ -1,30 +1,50 @@
 # Architecture
 
-**ASHA v0.4.2** - compiler-inspired prompt processing with strict layer boundaries.
+**ASHA v0.4.2** — compiler-inspired prompt processing with strict layer boundaries, plus a separate ANCHOR runtime for agent governance.
+
+This page explains the current mental model. It is not a how-to and not an API reference.
 
 ---
 
-## High-level flow
+## Prompt processing flow
 
 ```
-User Input
+User input
     │
     ▼
-Security (run_security)     ← PII detection, injection checks, masking
+Security (run_security)      ← PII detection, injection checks, masking
     │
     ▼
-Compilation (compile_prompt) ← IR → structured prompt (internal IR only)
+Compilation (compile_prompt) ← internal representation → structured prompt
     │
     ▼
-Optimization (optimize_tokens) ← MSDPC token reduction
+Optimization (optimize_tokens) ← token compression (MSDPC)
     │
     ▼
-ProcessResult               ← typed output, metrics, optional trace
+ProcessResult                ← typed output, metrics, optional trace
 ```
 
-For drop-in usage via `process()`, you interact with the pipeline as a black box. Use `trace=True` to inspect each stage.
+`process()` runs all three engines. `sanitize()` runs security only. `optimize()` runs token compression only. `mode="off"` skips engines via the policy gate.
 
-`Agent` adds model routing and LLM generation on top of preprocessing.
+You interact with this pipeline as a black box through the drop-in API. Use `trace=True` when you need stage visibility.
+
+`Agent` adds model routing and LLM generation on top of the same preprocessing path.
+
+---
+
+## ANCHOR (agent governance)
+
+ANCHOR sits beside the prompt pipeline. It does not replace `process()`; it governs autonomous agents at runtime:
+
+```
+User prompt → Mission contract (immutable)
+                    ↓
+        Action / memory / plan / chain guards → ALLOW | WARN | BLOCK | REVIEW
+                    ↓
+        Process sandbox (hooks or subprocess) → execution or halt
+```
+
+Adoption is typically `anchor(agent)` or a framework adapter. Details: [anchor.md](anchor.md).
 
 ---
 
@@ -32,34 +52,25 @@ For drop-in usage via `process()`, you interact with the pipeline as a black box
 
 ```
 src/asha/
-├── __init__.py              # 5 exports: process, sanitize, optimize, Agent, __version__
-├── core/                    # engines, policy, security, compiler, _ir (internal)
-│   ├── engines.py           # sanitize_text, compile_prompt, optimize_tokens
-│   ├── policy_config.py     # PolicyMode, PolicyConfig
-│   ├── policy_resolution.py # mode + policy → pipeline config
-│   ├── safety.py            # SafetyMode from policy mode
-│   ├── security/            # PII, threats, masking
-│   ├── compiler/            # PromptCompiler, MSDPC optimizer
-│   ├── _ir/                 # Internal IR - not public API
-│   └── pii_pipeline/        # Multi-phase PII detection (not main pipeline stages)
+├── __init__.py              # process, sanitize, optimize, Agent, anchor
+├── core/                    # engines, policy, security, compiler (IR is internal)
+│   ├── engines.py
+│   ├── policy_config.py
+│   ├── security/
+│   ├── compiler/
+│   └── _ir/                 # internal — not a public API
 ├── runtime/                 # orchestration
-│   ├── processor.py         # PromptProcessor - only orchestrator
-│   ├── resolve.py           # Hot-path argument resolution for process/sanitize
-│   ├── agent.py             # Agent
-│   ├── adapters/            # Provider-specific LLM clients
-│   ├── routing/             # Model selection (Agent concern)
-│   └── local_advisor/       # AshaFit local model recommendations
+│   ├── processor.py         # PromptProcessor — sole prompt orchestrator
+│   ├── agent.py
+│   ├── adapters/
+│   ├── routing/             # experimental smart routing
+│   ├── local_advisor/       # experimental AshaFit
+│   └── anchor/              # ANCHOR governance
 ├── integrations/            # wrap_llm, auto_patch, framework middleware
-│   ├── llm_wrap.py
-│   ├── auto_patch.py
-│   ├── fastapi/, flask/, django/, langchain/, llamaindex/
-│   └── otel.py
-├── compat/                  # Opt-in legacy dict conversion only
-│   ├── legacy_results.py    # to_legacy_pipeline_dict()
-│   └── warnings.py
 ├── types/                   # ProcessResult, SanitizeResult, OptimizeResult
-├── utils/                   # dropin (process/sanitize/optimize), unmask
-└── cli/                     # asha CLI (ancillary)
+├── utils/                   # dropin, unmask
+├── compat/                  # opt-in legacy helpers only
+└── cli/
 ```
 
 ---
@@ -72,35 +83,35 @@ src/asha/
 | `runtime/` | `core`, `types` | `integrations`, `compat` |
 | `types/` | `core` (minimal) | `compat`, `runtime`, `integrations` |
 | `utils/` | `runtime`, `core`, `types` | `compat` |
-| `integrations/` | `runtime`, `core`, `utils` | - |
-| `compat/` | anything | - (legacy helpers only) |
+| `integrations/` | `runtime`, `core`, `utils` | — |
+| `compat/` | anything | — (legacy helpers only) |
 
 Enforced by `tests/architecture/test_boundaries.py`.
 
 ---
 
-## Key design principles
+## Design principles
 
 ### Drop-in first
 
-Primary adoption: `process()`, `sanitize()`, `optimize()`. Integrations via `asha.integrations.wrap_llm`.
+Primary adoption is `process()`, `sanitize()`, `optimize()`. Client wrapping lives in `asha.integrations.wrap_llm`.
 
 ### Safety modes
 
 | Mode | Behavior |
 |------|----------|
-| `strict` | Fail-closed - raises on total failure |
-| `balanced` | Fail-open with rule-based PII fallback (default) |
-| `lite` | Minimal policy features; same fail-open semantics as balanced |
+| `strict` | Fail-closed — raises on total failure |
+| `balanced` | Fail-open with rule-based fallback (default) |
+| `lite` | Minimal policy features; fail-open like balanced |
 | `off` | Passthrough |
 
-Configure advanced policy via `PolicyConfig(pii_mode=..., reversible=..., preserve_intent=...)`.
+Advanced policy uses `PolicyConfig` (`pii_mode`, `reversible`, `preserve_intent`, …). Default `pii_mode` is `"hybrid"` and soft-falls back when ML deps are missing.
 
-### Policy resolution
+### Hot path
 
-`utils/dropin.process()` → `runtime/resolve.resolve_process_call()` → `PromptProcessor.run(profile, mode)`.
+`utils/dropin.process()` → `runtime/resolve.resolve_process_call()` → `PromptProcessor.run(...)`.
 
-No `compat/` on the hot path.
+`compat/` is not on the hot path.
 
 ### Legacy dict shapes
 
@@ -108,50 +119,33 @@ Opt-in only:
 
 ```python
 from asha.compat.legacy_results import to_legacy_pipeline_dict
+
 legacy = to_legacy_pipeline_dict(process("prompt", include_legacy_detail=True))
 ```
 
 ---
 
-## Adapter system
+## PII detection shape
 
-`AdapterFactory` in `runtime/adapters/` creates provider-specific adapters. `wrap_llm()` in `integrations/llm_wrap.py` is the user-facing entry point.
+1. **Rule-based** patterns in `core/security/` — always available
+2. **Multi-phase pipeline** in `core/pii_pipeline/` — normalization → detection → verification → scoring → masking
+3. **Hybrid ML** — optional via `pip install asha-ai[ml]`
 
----
-
-## PII detection architecture
-
-1. **Rule-based** (`core/security/`) - default, no downloads
-2. **Multi-phase pipeline** (`core/pii_pipeline/stages/`) - normalization → detection → verification → scoring → masking
-3. **Hybrid ML** (`core/hybrid_pii.py`) - optional via `pip install asha[ml]`
+Public docs describe the defense shape (layered detection, calibrated fail-closed behavior), not internal scoring mechanics.
 
 ---
 
 ## Observability
 
-- **TraceContext** - `process(..., trace=True)`
-- **OpenTelemetry** - optional via `pip install asha[otel]`
-- **DebugStage** - renamed from `PipelineStage` in `debug/`
+- `process(..., trace=True)` / `debug=True`
+- Optional OpenTelemetry via `pip install asha-ai[otel]`
 
 ---
 
-## Testing
+## Related
 
-```
-tests/              # Full test suite
-tests/architecture/ # Layer boundary enforcement
-tests/imports/      # Import graph
-tests/public_api/   # Root export freeze
-tests/contracts/    # API contracts (e.g. optimize vs sanitize)
-```
-
-CI runs: `pytest tests`
-
----
-
-## Related docs
-
-- [API Reference](api-reference.md)
-- [Deprecations](deprecations.md)
+- [Core concepts](core-concepts.md)
+- [API reference](api-reference.md)
 - [Security](security.md)
-- [Debugging](debugging.md)
+- [ANCHOR](anchor.md)
+- [Status](status.md)

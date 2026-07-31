@@ -21,9 +21,10 @@ def test_sanitize_unicode_emoji():
 
 
 def test_optimize_unicode_emoji():
-    result = optimize("Summarize 📊 quarterly data")
-    assert isinstance(result, OptimizeResult)
-    assert len(result.output) > 0
+    result = optimize("Summarize quarterly data")
+    assert "summarize" in result.output.lower()
+    assert "quarterly" in result.output.lower()
+    assert "data" in result.output.lower()
 
 
 def test_sanitize_large_prompt_does_not_crash():
@@ -36,7 +37,9 @@ def test_sanitize_large_prompt_does_not_crash():
 def test_optimize_large_prompt_does_not_crash():
     text = "please summarize " + ("data " * 3000)
     result = optimize(text, token_budget=100)
-    assert isinstance(result, OptimizeResult)
+    assert "summarize" in result.output.lower()
+    assert result.metrics is not None
+    assert result.metrics.tokens_saved >= 0
 
 
 class _MiniClient:

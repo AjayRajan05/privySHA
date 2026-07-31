@@ -19,12 +19,20 @@ def test_django_middleware_module_importable():
     from asha.integrations.django import middleware  # noqa: F401
 
     assert middleware is not None
+    assert hasattr(middleware.ASHAMiddleware, "_should_process_endpoint")
+    assert hasattr(middleware.ASHAMiddleware, "_find_prompts")
+    mw = _make_middleware_instance()
+    assert mw._should_process_endpoint("/api/chat") is True
 
 
 def test_django_middleware_class_exists():
     from asha.integrations.django.middleware import ASHAMiddleware
 
     assert ASHAMiddleware is not None
+    assert hasattr(ASHAMiddleware, "_should_process_endpoint")
+    assert hasattr(ASHAMiddleware, "_find_prompts")
+    mw = _make_middleware_instance()
+    assert mw._should_process_endpoint("/api/chat") is True
 
 
 def test_django_import_raises_without_django(monkeypatch):
@@ -177,5 +185,7 @@ def test_django_middleware_smoke_with_real_django():
     pytest.importorskip("django")
     from asha.integrations.django.middleware import ASHAMiddleware
 
-    assert ASHAMiddleware is not None
     assert callable(ASHAMiddleware)
+    mw = _make_middleware_instance()
+    assert mw._should_process_endpoint("/api/chat") is True
+    assert mw._should_process_endpoint("/health") is False

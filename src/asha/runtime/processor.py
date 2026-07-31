@@ -134,8 +134,8 @@ class PromptProcessor:
                     print(
                         f"Warning: {feasibility.get('installation_instructions', '')}"
                     )
-                    print("Falling back to rule-based PII detection")
-                pii_mode = "rule"
+                    print("Falling back to lite (regex-only) PII detection")
+                pii_mode = "lite"
 
             _, effective_privacy, policy_dict = build_pipeline_config(
                 mode=context.mode,

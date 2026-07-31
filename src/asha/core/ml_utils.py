@@ -36,7 +36,12 @@ class MLDependencyStatus:
 
 
 def check_ml_dependencies() -> MLDependencyStatus:
-    """Check availability of ML dependencies with auto-detection."""
+    """Check availability of ML dependencies with auto-detection.
+
+    Catch ``Exception`` (not only ``ImportError``): a broken/partial torch
+    install can raise ``RuntimeError`` / ``OSError`` after numpy reloads
+    (common on Windows), and must not abort the PII/security path.
+    """
     status = MLDependencyStatus()
 
     # Check spaCy
@@ -44,7 +49,7 @@ def check_ml_dependencies() -> MLDependencyStatus:
         import spacy  # noqa: F401
 
         status.spacy_available = True
-    except ImportError:
+    except Exception:
         status.missing_packages.append("spacy")
 
     # Check transformers
@@ -52,7 +57,7 @@ def check_ml_dependencies() -> MLDependencyStatus:
         import transformers  # noqa: F401
 
         status.transformers_available = True
-    except ImportError:
+    except Exception:
         status.missing_packages.append("transformers")
 
     # Check torch
@@ -60,7 +65,7 @@ def check_ml_dependencies() -> MLDependencyStatus:
         import torch  # noqa: F401
 
         status.torch_available = True
-    except ImportError:
+    except Exception:
         status.missing_packages.append("torch")
 
     # Check accelerate
@@ -68,7 +73,7 @@ def check_ml_dependencies() -> MLDependencyStatus:
         import accelerate  # noqa: F401
 
         status.accelerate_available = True
-    except ImportError:
+    except Exception:
         status.missing_packages.append("accelerate")
 
     # Set overall availability
@@ -93,23 +98,51 @@ def get_ml_installation_instructions() -> str:
 
 
 def validate_pii_mode(pii_mode: str) -> str:
-    """Validate and normalize PII detection mode."""
-    valid_modes = ["rule", "hybrid", "ml_only"]
-    if pii_mode not in valid_modes:
+    """Validate and normalize PII detection mode.
+
+    ``lite`` is the explicit regex-only opt-in (formerly the default ``rule``).
+    ``rule`` remains accepted as a deprecated alias for ``lite``.
+    ``hybrid`` is the default layered path (regex + context + optional NER).
+    """
+    aliases = {"rule": "lite"}
+    normalized = aliases.get(pii_mode, pii_mode)
+    valid_modes = ["lite", "hybrid", "ml_only", "hybrid_calibrated"]
+    if normalized not in valid_modes:
         raise ValueError(
-            f"Invalid pii_mode '{pii_mode}'. Valid options: {valid_modes}")
-    return pii_mode
+            f"Invalid pii_mode '{pii_mode}'. Valid options: "
+            f"lite (alias: rule), hybrid, ml_only, hybrid_calibrated"
+        )
+    # hybrid_calibrated is an alias of hybrid for API forward-compat.
+    if normalized == "hybrid_calibrated":
+        return "hybrid"
+    return normalized
 
 
 def check_pii_mode_feasibility(pii_mode: str) -> Dict[str, Any]:
-    """Check if PII mode is feasible with current dependencies."""
+    """Check if PII mode is feasible with current dependencies.
+
+    Hybrid layered detection (regex + heuristics + context) works without ML.
+    spaCy NER is an optional boost. Only ``ml_only`` requires ML packages.
+    """
+    pii_mode = validate_pii_mode(pii_mode)
     ml_status = check_ml_dependencies()
 
-    if pii_mode == "rule":
+    if pii_mode == "lite":
         return {"feasible": True, "requires_ml": False, "status": "available"}
 
-    elif pii_mode in ["hybrid", "ml_only"]:
-        if not ml_status.all_available:
+    if pii_mode == "hybrid":
+        return {
+            "feasible": True,
+            "requires_ml": False,
+            "status": "available",
+            "ner_available": ml_status.spacy_available,
+            "missing_packages": (
+                ml_status.missing_packages if not ml_status.spacy_available else []
+            ),
+        }
+
+    if pii_mode == "ml_only":
+        if not ml_status.spacy_available:
             return {
                 "feasible": False,
                 "requires_ml": True,
@@ -117,8 +150,7 @@ def check_pii_mode_feasibility(pii_mode: str) -> Dict[str, Any]:
                 "missing_packages": ml_status.missing_packages,
                 "installation_instructions": get_ml_installation_instructions(),
             }
-        else:
-            return {"feasible": True, "requires_ml": True, "status": "available"}
+        return {"feasible": True, "requires_ml": True, "status": "available"}
 
     return {"feasible": False, "requires_ml": False, "status": "invalid_mode"}
 
@@ -126,7 +158,7 @@ def check_pii_mode_feasibility(pii_mode: str) -> Dict[str, Any]:
 class MLLoader:
     """Lazy ML model loader with proper error handling."""
 
-    def __init__(self, pii_mode: str = "rule"):
+    def __init__(self, pii_mode: str = "hybrid"):
         self.pii_mode = validate_pii_mode(pii_mode)
         self.ml_status = check_ml_dependencies()
         self._ml_models_loaded = False
@@ -134,7 +166,7 @@ class MLLoader:
 
     def is_ml_required(self) -> bool:
         """Check if ML models are required for current mode."""
-        return self.pii_mode in ["hybrid", "ml_only"]
+        return self.pii_mode == "ml_only"
 
     def is_ml_available(self) -> bool:
         """Check if ML dependencies are available."""

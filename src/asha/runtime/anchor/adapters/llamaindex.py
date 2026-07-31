@@ -137,7 +137,15 @@ def anchor_llamaindex(
     warn_policy: Optional[str] = None,
     interactive: Optional[bool] = None,
 ) -> Any:
-    """Wrap a LlamaIndex agent or workflow with ANCHOR governance."""
+    """Wrap a LlamaIndex agent or workflow with ANCHOR governance.
+
+    Install: ``pip install asha[llamaindex]``
+    """
+    module = type(target).__module__ or ""
+    if "llama_index" in module:
+        from .deps import require_module
+
+        require_module("llama_index", adapter="anchor_llamaindex")
     if not is_llamaindex_agent(target):
         raise TypeError(
             f"anchor_llamaindex() expects a LlamaIndex agent/workflow, got {type(target).__name__}."

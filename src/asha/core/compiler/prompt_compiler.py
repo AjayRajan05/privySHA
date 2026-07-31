@@ -151,6 +151,14 @@ Optimization goals:
 {constraints}
 
 Provide effective optimization strategies and implementations.""",
+            IntentType.ABSTAIN: """You are a careful assistant. Process the following {entity} without assuming a specific task verb.
+
+{context}
+
+Requirements:
+{constraints}
+
+Follow the user's wording closely. Prefer clarifying questions over inventing intent.""",
         }
 
     def _init_compilation_rules(self) -> Dict[str, Any]:
@@ -171,6 +179,7 @@ Provide effective optimization strategies and implementations.""",
                 IntentType.SEARCH: "search",
                 IntentType.DEBUG: "debug",
                 IntentType.OPTIMIZE: "optimize",
+                IntentType.ABSTAIN: "process",
             },
             "entity_descriptions": {
                 EntityType.DATASET: "dataset",

@@ -36,6 +36,9 @@ class AnchorRuntime:
         warn_policy: Optional[str] = None,
         interactive: Optional[bool] = None,
         isolation: str = "auto",
+        *,
+        enable_telemetry: Optional[bool] = None,
+        telemetry_path: Optional[str] = None,
     ):
         resolved_interactive = resolve_interactive(interactive)
         resolved_warn_policy = resolve_warn_policy(warn_policy, interactive=resolved_interactive)
@@ -50,7 +53,11 @@ class AnchorRuntime:
             warn_policy=resolved_warn_policy,
             interactive=resolved_interactive,
         )
-        self.telemetry = AnchorTelemetry()
+        # Opt-in only — never create anchor_telemetry.jsonl by default.
+        self.telemetry = AnchorTelemetry(
+            log_file=telemetry_path,
+            enabled=enable_telemetry,
+        )
         self.sandbox = SandboxManager(mode=isolation)
 
     def initialize_mission(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> None:

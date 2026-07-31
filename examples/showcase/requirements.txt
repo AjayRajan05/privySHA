@@ -1,0 +1,25 @@
+# ASHA Streamlit showcase — UI dependencies
+# Install from repo root:
+#   pip install -e ".[demo]"
+# or:
+#   pip install -e .
+#   pip install -r examples/showcase/requirements.txt
+#
+# Requires Python >=3.10 and the asha package from this repository.
+
+# --- Showcase UI ---
+streamlit>=1.28.0,<2.0.0
+plotly>=5.18.0,<6.0.0
+streamlit-option-menu>=0.3.6,<0.5.0
+streamlit-extras>=0.4.0,<0.7.0
+
+# --- Already pulled in by asha core (listed for clarity) ---
+# pydantic>=2.0.0,<3.0.0
+# tiktoken>=0.5.0,<2.0.0
+# requests>=2.28.0,<3.0.0
+# python-dotenv>=1.0.0,<2.0.0
+# pypdf>=4.0.0,<6.0.0
+# python-docx>=1.0.0,<2.0.0
+
+# --- Optional: Live LLM page with Gemini ---
+# google-generativeai>=0.3.0,<1.0.0

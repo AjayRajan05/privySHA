@@ -65,39 +65,45 @@ def test_process_prompt_for_wrap_strict():
     assert "@" not in result or "example.com" not in result
 
 
-def test_process_prompt_for_wrap_balanced():
+def test_process_prompt_for_wrap_balanced_preserves_content():
     from asha.integrations.llm_wrap import _process_prompt_for_wrap
 
     result = _process_prompt_for_wrap("Summarize quarterly report", mode="balanced")
     assert isinstance(result, str)
+    assert result
+    assert "report" in result.lower() or "summarize" in result.lower()
 
 
 def test_process_prompt_for_wrap_lite():
     from asha.integrations.llm_wrap import _process_prompt_for_wrap
 
-    result = _process_prompt_for_wrap("Hello there", mode="lite")
+    result = _process_prompt_for_wrap("Contact alice@acme.com now", mode="lite")
     assert isinstance(result, str)
+    assert "alice@acme.com" not in result
 
 
 def test_process_prompt_for_wrap_off():
     from asha.integrations.llm_wrap import _process_prompt_for_wrap
 
-    result = _process_prompt_for_wrap("Hello there", mode="off")
+    result = _process_prompt_for_wrap("Contact john@example.com", mode="off")
     assert isinstance(result, str)
+    assert "john@example.com" in result
 
 
 def test_process_prompt_for_wrap_mode_off():
     from asha.integrations.llm_wrap import _process_prompt_for_wrap
 
-    result = _process_prompt_for_wrap("Hello there", mode="off")
+    result = _process_prompt_for_wrap("Contact john@example.com", mode="off")
     assert isinstance(result, str)
+    assert "john@example.com" in result
 
 
-def test_process_prompt_for_wrap_balanced():
+def test_process_prompt_for_wrap_balanced_masks_pii():
     from asha.integrations.llm_wrap import _process_prompt_for_wrap
 
-    result = _process_prompt_for_wrap("Hello there", mode="balanced")
+    result = _process_prompt_for_wrap("Contact alice@acme.com now", mode="balanced")
     assert isinstance(result, str)
+    assert "alice@acme.com" not in result
 
 
 # ---------------------------------------------------------------------------

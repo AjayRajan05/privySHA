@@ -15,9 +15,15 @@ from asha.utils.dropin import process
 
 
 def test_llamaindex_plugin_importable():
-    from asha.integrations.llamaindex import plugin  # noqa: F401
+    from asha.integrations.llamaindex.plugin import wrap_query_engine
 
-    assert plugin is not None
+    class _MockQueryEngine:
+        def query(self, query_bundle):
+            return f"importable:{query_bundle.query_str}"
+
+    wrapped = wrap_query_engine(_MockQueryEngine(), privacy=False)
+    assert wrapped is not None
+    assert type(wrapped).__name__ == "ASHAQueryEngine"
 
 
 def test_llamaindex_plugin_exports_wrap_query_engine():
@@ -25,11 +31,19 @@ def test_llamaindex_plugin_exports_wrap_query_engine():
 
     assert callable(wrap_query_engine)
 
+    class _MockQE:
+        def query(self, bundle):
+            return f"exports:{getattr(bundle, 'query_str', bundle)}"
+
+    wrapped = wrap_query_engine(_MockQE(), privacy=False)
+    assert type(wrapped).__name__ == "ASHAQueryEngine"
+
 
 def test_llamaindex_plugin_exports_asha_llm():
     from asha.integrations.llamaindex.plugin import ASHALLM
 
     assert ASHALLM is not None
+    assert isinstance(ASHALLM, type) or callable(ASHALLM)
 
 
 # ---------------------------------------------------------------------------
@@ -38,18 +52,23 @@ def test_llamaindex_plugin_exports_asha_llm():
 
 
 def test_wrap_query_engine_returns_wrapped():
+    pytest.importorskip("llama_index.core")
     from asha.integrations.llamaindex.plugin import wrap_query_engine
+    from llama_index.core.schema import QueryBundle
 
-    responses = []
+    received = []
 
     class _MockQueryEngine:
-        def query(self, query_str: str):
-            responses.append(query_str)
-            return f"result:{query_str}"
+        def query(self, query_bundle):
+            received.append(query_bundle.query_str)
+            return f"result:{query_bundle.query_str}"
 
     qe = _MockQueryEngine()
     wrapped = wrap_query_engine(qe, privacy=False)
-    assert wrapped is not None
+    result = wrapped.query(QueryBundle(query_str="What is 2+2?"))
+    assert received
+    assert "result:" in str(result)
+    assert "What is 2+2?" in received[0] or "2+2" in received[0]
 
 
 def _make_query_bundle(query_str: str):
@@ -95,10 +114,13 @@ def test_wrap_query_engine_masks_pii():
             return f"result:{bundle.query_str}"
 
     qe = _MockQueryEngine()
+    # Use a non-placeholder address — user@example.com is intentionally left
+    # unmasked as a known teaching/placeholder local+domain pair.
+    pii_email = "alice.chen@acme-corp.com"
     wrapped = wrap_query_engine(qe, privacy=True)
-    wrapped.query(QueryBundle(query_str="Find documents about user@example.com"))
+    wrapped.query(QueryBundle(query_str=f"Find documents about {pii_email}"))
     assert received
-    assert "user@example.com" not in received[0]
+    assert pii_email not in received[0]
 
 
 # ---------------------------------------------------------------------------
@@ -109,5 +131,12 @@ def test_wrap_query_engine_masks_pii():
 def test_llamaindex_real_import_smoke():
     pytest.importorskip("llama_index")
     from asha.integrations.llamaindex.plugin import wrap_query_engine
+    from llama_index.core.schema import QueryBundle
 
-    assert callable(wrap_query_engine)
+    class _MockQueryEngine:
+        def query(self, query_bundle):
+            return f"smoke:{query_bundle.query_str}"
+
+    wrapped = wrap_query_engine(_MockQueryEngine(), privacy=False)
+    result = wrapped.query(QueryBundle(query_str="ping"))
+    assert str(result) == "smoke:ping"

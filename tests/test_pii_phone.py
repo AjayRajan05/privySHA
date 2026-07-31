@@ -35,7 +35,7 @@ def test_optimize_tokens_only_may_keep_phone():
 
     result = optimize("My number is 555-111-2222")
     assert isinstance(result, OptimizeResult)
-    assert result.output
+    assert "555-111-2222" in result.output
 
 
 def test_phone_not_confused_with_order_number():

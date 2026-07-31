@@ -1,5 +1,24 @@
+# Copyright 2026 Ajay Rajan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Structured telemetry engine for Anchor Runtime (opt-in)."""
+
+from __future__ import annotations
+
 import json
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from .types import ActionEvent, ChainEvent, MemoryEvent, RiskSummary, AnchorState
@@ -7,25 +26,41 @@ from .verdicts import ActionVerdict, ChainVerdict, MemoryVerdict
 from .plan_guard import PlanVerdict
 
 
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 class AnchorTelemetry:
     """
-    Structured telemetry engine for Anchor Runtime.
-    Tracks risks, drift, blocked actions, and ensures sensitive data is redacted.
+    Structured telemetry for Anchor Runtime.
+
+    **Opt-in:** by default no file is created. Enable with
+    ``ASHA_ANCHOR_TELEMETRY=1``, ``telemetry_path=...``, or ``enabled=True``.
     """
 
-    def __init__(self, log_file: str = "anchor_telemetry.jsonl"):
-        self.log_file = log_file
-        self.logger = logging.getLogger(f"AnchorTelemetry.{log_file}")
+    def __init__(
+        self,
+        log_file: Optional[str] = None,
+        *,
+        enabled: Optional[bool] = None,
+    ):
+        env_path = os.environ.get("ASHA_ANCHOR_TELEMETRY_PATH", "").strip()
+        if enabled is None:
+            enabled = _env_truthy("ASHA_ANCHOR_TELEMETRY") or bool(log_file) or bool(env_path)
+        self.enabled = bool(enabled)
+        self.log_file = log_file or env_path or "anchor_telemetry.jsonl"
+        self.logger = logging.getLogger(f"AnchorTelemetry.{id(self)}")
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
 
-        if not self.logger.handlers:
-            handler = logging.FileHandler(log_file)
-            formatter = logging.Formatter("%(message)s")
-            handler.setFormatter(formatter)
+        if self.enabled and not self.logger.handlers:
+            handler = logging.FileHandler(self.log_file)
+            handler.setFormatter(logging.Formatter("%(message)s"))
             self.logger.addHandler(handler)
 
     def _emit(self, log_entry: Dict[str, Any]) -> None:
+        if not self.enabled:
+            return
         self.logger.info(json.dumps(log_entry))
 
     def _redact_payload(self, payload: Dict[str, Any]) -> Dict[str, str]:

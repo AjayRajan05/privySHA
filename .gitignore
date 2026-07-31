@@ -13,6 +13,8 @@ venv/
 .venv-ci/
 .venv-ci-clean/
 .venv-pub/
+.venv_asha_clean_test/
+.venv-mypy-ci/
 
 # IDE / editor
 .idea/
@@ -20,9 +22,10 @@ venv/
 *.swp
 *.swo
 
-# Secrets
+# Secrets — never commit
 .env
 .env.*
+!.env.example
 
 # Build / packaging
 dist/
@@ -50,6 +53,57 @@ benchmarks/output/
 logs/
 *.log
 
-# ANCHOR runtime telemetry (generated locally)
+# ANCHOR runtime telemetry (generated locally; opt-in only)
 anchor_telemetry.jsonl
 **/anchor_telemetry.jsonl
+
+# Local suite / scratch logs (never ship)
+_*.txt
+_*.xml
+_failed_*.txt
+_full_suite_*
+_suite_*
+fake_tests_report.json
+find_empty_tests.py
+_parse_junit.py
+_tmp_*.py
+_tmp_*/
+
+# Maintainer-only working notes (optional local)
+docs_detail.md
+
+# ---------------------------------------------------------------------------
+# Local-only: keep on disk for training / pilots; never push to GitHub
+# (library publish / public surface must stay free of these)
+# ---------------------------------------------------------------------------
+
+# Detector weights + local datasets
+data/
+models/
+/config/
+*.joblib
+
+# Training pipeline + corpora (local maintainer workspace)
+training/
+asha_training_data_generators/
+asha_training_data_generators.zip
+llm_augment.py
+build_asha_dataset.py
+build_best_dataset.py
+improve_data_quality.py
+Data_README.md.md
+To-Do.md
+
+# Local red-team / public corpus staging
+jailbreak_llms/
+injection_malicious.jsonl
+injection_benign.jsonl
+sample_data_output/
+
+# Generated model release bundles (rebuild with training/train_hardened.py --pack)
+dist/asha-models-*/
+dist/asha-models-*.zip
+
+# Local private checkout symlink / clone
+.private-artifacts/
+asha-private-artifacts/

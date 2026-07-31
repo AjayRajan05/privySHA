@@ -22,34 +22,33 @@ class NormalizationStage(BaseStage):
     def __init__(self) -> None:
         super().__init__("normalization")
 
-        # Obfuscation patterns to normalize
+        # Obfuscation patterns — only bracketed/parenthesized forms.
+        # Never rewrite bare "at"/"dot" (breaks "email me at alice@…" and
+        # "cancellation").
         self.obfuscation_patterns = {
-            # Email obfuscation
             r"\s*\[\s*at\s*\]\s*": "@",
             r"\s*\[\s*dot\s*\]\s*": ".",
             r"\s*\(\s*at\s*\)\s*": "@",
             r"\s*\(\s*dot\s*\)\s*": ".",
-            r"\s*at\s*": "@",
-            r"\s*dot\s*": ".",
-            # Phone obfuscation
             r"[-\s]\*[-\s]": "-",
-            r"\s*\*\s*": "",
-            # SSN obfuscation
-            r"[-\s]\*[-\s]": "-",
-            # Common separators
-            r"\s*[-_]\s*": "-",
-            r"\s*[/_]\s*": "/",
         }
 
-        # Format standardization patterns
-        self.format_patterns = {
-            # Phone numbers - standardize to ###-###-####
-            r"(\d{3})[.\s-]*(\d{3})[.\s-]*(\d{4})": r"\1-\2-\3",
-            # SSN - standardize to ###-##-####
-            r"(\d{3})[.\s-]*(\d{2})[.\s-]*(\d{4})": r"\1-\2-\3",
-            # Credit card - remove spaces and dashes
-            r"(\d{4})[.\s-]*(\d{4})[.\s-]*(\d{4})[.\s-]*(\d{4})": r"\1\2\3\4",
-        }
+        # Format standardization — credit cards first so phone/SSN patterns
+        # cannot carve a 16-digit PAN into ###-###-#### fragments.
+        self.format_patterns = [
+            (
+                r"(\d{4})[.\s-]*(\d{4})[.\s-]*(\d{4})[.\s-]*(\d{4})",
+                r"\1\2\3\4",
+            ),
+            (
+                r"(?<!\d)(\d{3})[.\s-]+(\d{3})[.\s-]+(\d{4})(?!\d)",
+                r"\1-\2-\3",
+            ),
+            (
+                r"(?<!\d)(\d{3})[.\s-]+(\d{2})[.\s-]+(\d{4})(?!\d)",
+                r"\1-\2-\3",
+            ),
+        ]
 
     def execute(self, context: PIIContext) -> StageResult:
         """
@@ -147,8 +146,8 @@ class NormalizationStage(BaseStage):
         """Standardize common PII formats"""
         normalized = text
 
-        # Apply format standardization patterns
-        for pattern, replacement in self.format_patterns.items():
+        # Apply format standardization patterns (ordered list of tuples).
+        for pattern, replacement in self.format_patterns:
             normalized = re.sub(pattern, replacement, normalized)
 
         return normalized

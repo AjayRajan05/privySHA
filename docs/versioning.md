@@ -8,7 +8,7 @@ ASHA follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| **0.4.2** | **Active - developer preview** | Package rename (`asha`); ANCHOR agent governance; pin in production |
+| **0.4.2** | **Active — developer preview** | Package rename (`asha`); ANCHOR agent governance. Install: `pip install asha-ai`. See [status.md](status.md) |
 | 0.4.1 | Superseded | Architecture complete; root API frozen |
 | 0.4.0 | Superseded | Typed results introduced |
 | 0.3.x | Previous preview | Dict/string returns, lazy root exports |
@@ -33,15 +33,66 @@ PyPI classifier: **Development Status :: 3 - Alpha**
 - `process(mode=)` + `policy=PolicyConfig(...)` - no loose deprecated kwargs
 - Layer boundaries enforced in CI
 
-Breaking changes within 0.4.x are documented in the [CHANGELOG](https://github.com/AjayRajan05/privySHA/blob/main/CHANGELOG.md) and [migration-v0.4.md](migration-v0.4.md).
+Breaking changes within 0.4.x are documented in the [CHANGELOG](https://github.com/AjayRajan05/ASHA/blob/main/CHANGELOG.md) and [migration-v0.4.md](migration-v0.4.md).
 
 ---
 
-## Path to 1.0.0
+## API stability rules (0.4.2)
 
-1. **0.4.x** - Architecture and API surface settled (current)
-2. **0.5.x** - API freeze; deprecation-only changes
-3. **1.0.0** - Stable public API guarantee
+### Stand behind (core drop-in)
+
+These are the APIs most applications should use. Behavior may improve, but
+signatures and result field *names* are frozen within 0.4.2 unless a
+documented breaking change lands in CHANGELOG:
+
+| Surface | Notes |
+|---------|--------|
+| `from asha import process, sanitize, optimize, Agent, anchor` | Only root exports |
+| `process(..., mode=..., policy=...)` → `ProcessResult` | Fields: `output`, `original`, `degraded`, `security`, `metrics`, … |
+| `sanitize(...)` → `SanitizeResult` | Security-only |
+| `optimize(...)` → `OptimizeResult` | Never runs security |
+| `from asha.integrations import wrap_llm` | Preferred client wrapping |
+| `PolicyConfig` / policy modes | `balanced`, `strict`, `lite`, `off` |
+
+Contract tests: `tests/public_api/`, `tests/contracts/`.
+
+### Preview (pin + validate)
+
+| Surface | Notes |
+|---------|--------|
+| `anchor()` / `AnchorRuntime` / framework adapters | Mission governance — validate on your agent stack |
+| Isolation modes `auto` / `hard` / `off` | Container backends not implemented |
+
+### Experimental (may change without deprecation)
+
+Emits `ASHAExperimentalWarning` at call time. Prefer core APIs above.
+
+| Surface | Notes |
+|---------|--------|
+| `recommend_local_model` / AshaFit | Local model advisor |
+| `SmartRoutingAdapter` / `Agent(routing_config=...)` | Task-based routing |
+| `auto_patch()` | Global SDK monkey-patch — prefer `wrap_llm` |
+| `AdapterFactory` advanced helpers | Beyond basic mock/openai create |
+
+Docs: [experimental-features.md](experimental-features.md).
+
+### What a future 1.0 would guarantee
+
+- Semver-stable root + `wrap_llm` contracts
+- Documented deprecation window before removals
+- Published adapter support matrix for ANCHOR
+
+Until then, 0.x may still break with CHANGELOG notes.
+
+---
+
+## Path to 1.0.0 (deferred)
+
+Stay on **0.4.2** until the product is fully built and the maintainer is ready to acknowledge a stable API. No rush.
+
+1. **0.4.x** - Current track (finish release leftovers + pilot quality here)
+2. **0.5.x** - Optional later freeze window (only if needed)
+3. **1.0.0** - Only after the above — see [production-readiness.md](production-readiness.md)
 
 ---
 
@@ -70,11 +121,15 @@ After **1.0.0**, breaking changes require a major release.
 
 ---
 
-## Pinning in production
+## Installing vs pinning
+
+```bash
+pip install asha-ai          # default — everyone, lite path
+```
 
 ```toml
-# pyproject.toml or requirements.txt
+# Optional: freeze the build you validated in a pilot
 asha==0.4.2
 ```
 
-Review the [CHANGELOG](https://github.com/AjayRajan05/privySHA/blob/main/CHANGELOG.md) before upgrading across minor versions.
+Review the [CHANGELOG](https://github.com/AjayRajan05/ASHA/blob/main/CHANGELOG.md) before upgrading across minor versions.

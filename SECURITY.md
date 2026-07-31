@@ -2,11 +2,12 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| 0.2.x   | :x:                |
-| < 0.2   | :x:                |
+| Version | Supported | Notes |
+| ------- | --------- | ----- |
+| 0.4.x   | :white_check_mark: | Current developer preview — pin exact version |
+| 0.3.x   | :x: | Superseded |
+| 1.0.x   | :x: | Retracted track (brief 2026-05 line; project returned to 0.x) |
+| < 0.3   | :x: | Unsupported |
 
 ## Reporting a Vulnerability
 
@@ -38,7 +39,8 @@ Out of scope:
 
 - Vulnerabilities in third-party LLM providers (OpenAI, Anthropic, etc.)
 - Applications that disable privacy features (`privacy=False`, `mode="off"`)
-- ML model behavior when using optional `[ml]` extras
+- ML model behavior when using optional `[ml]` / `[hardened]` extras
+- ANCHOR framework-adapter edge cases outside CI stub coverage
 
 ## Security Design Principles
 
@@ -46,13 +48,17 @@ ASHA follows these defaults:
 
 - **Privacy-first**: PII masking enabled by default
 - **Fail-safe**: Returns original or sanitized content on errors - never crashes the host app
-- **No hidden downloads**: Rule-based mode requires no model downloads
+- **No hidden downloads**: Rule-based / lite path requires no model downloads
 - **Local processing**: Core security runs locally; no telemetry sent by default
+- **Fail-closed on uncertain detections** when hardened paths are available (REVIEW / restrictive defaults rather than silent ALLOW)
 
 ## Best Practices for Users
 
-- Keep `privacy=True` in production
+- Install with `pip install asha-ai`; pin a tested version (e.g. `asha==0.4.2`) for production pilots
 - Use `mode="strict"` for sensitive workloads
+- Prefer `wrap_llm()` over `auto_patch()`
 - Run `pip audit` regularly on your environment
 - Do not log raw prompts containing PII in production
 - Validate ASHA on your own data before compliance use
+- Treat ANCHOR and experimental features as preview until 1.0
+- Never commit `.env` or detector weights to the public repository

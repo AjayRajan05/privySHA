@@ -376,9 +376,16 @@ def anchor_crewai(
 
         researcher = Agent(role="...", goal="...", tools=[...])
         crew = Crew(agents=[researcher], tasks=[...])
-        crew = anchor_crewai(crew, risk_tolerance="LOW")
+        crew = anchor_crewai(crew, risk_tolerance="LOW", interactive=False)
         crew.kickoff(inputs={"topic": "AI trends"})
+
+    Install: ``pip install asha[crewai]``
     """
+    module = type(target).__module__ or ""
+    if "crewai" in module:
+        from .deps import require_module
+
+        require_module("crewai", adapter="anchor_crewai")
     runtime = AnchorRuntime(
         risk_tolerance=risk_tolerance,
         warn_policy=warn_policy,

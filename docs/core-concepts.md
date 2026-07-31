@@ -1,17 +1,17 @@
-# Core Concepts
+# Core concepts
 
-**ASHA v0.4.2**
+**ASHA v0.4.2** — how the pieces fit together.
 
-ASHA preprocesses prompts: detect PII, check threats, compile structure, compress tokens. You call one function; the engines run inside `PromptProcessor`.
+ASHA preprocesses prompts (detect PII, check threats, compile structure, compress tokens) and can govern autonomous agents via ANCHOR. You call one function; engines run inside `PromptProcessor`. ANCHOR is a separate runtime path.
 
 ---
 
 ## Public API
 
-### Root package (only these)
+### Root package
 
 ```python
-from asha import process, sanitize, optimize, Agent
+from asha import process, sanitize, optimize, Agent, anchor
 ```
 
 ### Common subpackage imports
@@ -23,10 +23,11 @@ from asha.core.policy_config import PolicyConfig
 from asha.runtime import PromptProcessor
 from asha.utils.dropin import process_async
 from asha.utils.unmask import unmask
-from asha.runtime.local_advisor.advisor import recommend_local_model
 ```
 
 There is **no** global `configure()`. Pass `mode` and `policy` per call.
+
+Experimental helpers (`recommend_local_model`, smart routing, `AdapterFactory`) live under [experimental-features.md](experimental-features.md).
 
 ---
 
@@ -37,8 +38,8 @@ process(prompt)
   → resolve mode + PolicyConfig
   → PromptProcessor.run()
       → run_security()      # PII, injection, masking
-      → compile_prompt()    # internal IR → structured text
-      → optimize_tokens()   # MSDPC compression
+      → compile_prompt()    # internal representation → structured text
+      → optimize_tokens()   # token compression
   → ProcessResult
 ```
 
@@ -73,7 +74,7 @@ from asha.core.policy_config import PolicyConfig
 process(
     prompt,
     policy=PolicyConfig(
-        pii_mode="rule",       # rule | hybrid | ml_only
+        pii_mode="rule",       # hybrid (default) | rule | lite | ml_only
         reversible=False,
         preserve_intent=False,
         security_level="medium",
@@ -83,7 +84,7 @@ process(
 
 | Field | Purpose |
 |-------|---------|
-| `pii_mode` | Detection strategy (`hybrid` needs `asha[ml]`) |
+| `pii_mode` | Detection strategy (default `"hybrid"`; soft-falls back without ML) |
 | `reversible` | Store masking map for `unmask()` |
 | `preserve_intent` | Skip optimization when no PII/threats |
 | `security_level` | `low` / `medium` / `high` |
@@ -108,7 +109,7 @@ str(result)            # same as result.output
 
 ### SanitizeResult / OptimizeResult
 
-Same pattern - `.output`, `.security` (sanitize), `.metrics` (optimize).
+Same pattern — `.output`, `.security` (sanitize), `.metrics` (optimize).
 
 Legacy dict: `result.to_dict()` or `asha.compat.legacy_results.to_legacy_pipeline_dict(result)`.
 
@@ -136,20 +137,21 @@ result = sanitize(
     policy=PolicyConfig(reversible=True),
 )
 safe = result.output
-restored = unmask("Reply to alice@corp.com", result.security.masking_map)
+restored = unmask(safe, result.security.masking_map)
 ```
 
 ---
 
-## Agent vs drop-in
+## Agent vs drop-in vs ANCHOR
 
 | Goal | Use |
 |------|-----|
 | Preprocess only | `process()`, `sanitize()`, `optimize()` |
 | Wrap existing SDK | `wrap_llm(client)` |
 | Preprocess + LLM call | `Agent(model=...)` |
-| Task-based model pick | `Agent(routing_config={"chat": "gpt-4o-mini", ...})` |
-| Local model advice | `recommend_local_model()` |
+| Govern autonomous agents | `anchor(agent)` / framework adapters |
+| Task-based model pick | `Agent(routing_config=...)` — **experimental** |
+| Local model advice | `recommend_local_model()` — **experimental** |
 
 `Agent(privacy=True)` enables preprocessing with strict internal mode. `privacy=False` disables it.
 
@@ -157,8 +159,15 @@ restored = unmask("Reply to alice@corp.com", result.security.masking_map)
 
 ## Internal vs public
 
-**Public:** `process`, engines behavior via modes, typed results.
+**Public:** `process`, modes, typed results, `anchor`, documented integrations.
 
-**Internal (do not import in app code):** `core/_ir/`, `core/pii_pipeline/` stages, compiler internals.
+**Internal (do not import in app code):** `core/_ir/`, compiler internals, detector calibration artifacts.
 
-IR is built inside `compile_prompt()` - never passed as a public argument.
+---
+
+## Related
+
+- [Architecture](architecture.md)
+- [API reference](api-reference.md)
+- [Status](status.md)
+- [Experimental features](experimental-features.md)

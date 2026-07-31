@@ -1,6 +1,21 @@
 # Migration Guide - v0.4.x
 
-Upgrade from ASHA **0.3.x** (or early 0.4.0) to **0.4.2**.
+Upgrade from ASHA **0.3.x** (or early 0.4.0) to **0.4.2**. Also covers the **PrivySHA → ASHA** package rename.
+
+---
+
+## 0. Package rename (PrivySHA → ASHA)
+
+| Before | After |
+|--------|-------|
+| `pip install privysha` | `pip install asha-ai` (pin pilots: `asha-ai==0.4.2`) |
+| `from privysha import process` | `from asha import process` |
+| CLI `privysha` | CLI `asha` |
+| Env vars `PRIVYSHA_*` | Env vars `ASHA_*` |
+| PyPI name | **`asha-ai`** (`asha` on PyPI is unrelated; imports stay `asha`) |
+| Repo / docs | [github.com/AjayRajan05/ASHA](https://github.com/AjayRajan05/ASHA) · [docs site](https://ajayrajan05.github.io/ASHA/) |
+
+Uninstall the old package if both are present: `pip uninstall privysha` then `pip install asha-ai==0.4.2`.
 
 ---
 

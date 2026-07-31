@@ -28,9 +28,14 @@ def merge_mission_with_baseline(
         )
     )
     allowed_tools = list(dict.fromkeys(list(baseline.allowed_tools) + list(phase.allowed_tools)))
-    allowed_actions = list(
-        dict.fromkeys(list(baseline.allowed_actions) + list(phase.allowed_actions))
-    )
+    # When baseline is low-confidence, refresh must not silently loosen restrictions
+    # by unioning phase send/write permissions onto the read/list-only floor.
+    if baseline.low_confidence:
+        allowed_actions = list(baseline.allowed_actions)
+    else:
+        allowed_actions = list(
+            dict.fromkeys(list(baseline.allowed_actions) + list(phase.allowed_actions))
+        )
     # Baseline write/read permissions win when present
     read_paths = baseline.allowed_read_paths or phase.allowed_read_paths
     write_paths = baseline.allowed_write_paths or phase.allowed_write_paths
@@ -49,6 +54,7 @@ def merge_mission_with_baseline(
             baseline.forbid_network_exfiltration or phase.forbid_network_exfiltration
         ),
         risk_tolerance=baseline.risk_tolerance,
+        low_confidence=baseline.low_confidence or phase.low_confidence,
     )
 
 

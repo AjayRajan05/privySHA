@@ -77,23 +77,36 @@ class SecurityLayer:
         self,
         security_level: SecurityLevel = SecurityLevel.MEDIUM,
         reversible_masking: bool = False,
+        injection_mode: Optional[str] = None,
     ):
-        """Initialize SecurityLayer with specified security level."""
+        """Initialize SecurityLayer with specified security level.
+
+        Args:
+            security_level: Operating security level.
+            reversible_masking: Store reversible masking map when True.
+            injection_mode: ``None`` → auto-resolve (ensemble when hardened
+                deps+artifacts exist, else lite). Explicit ``lite`` /
+                ``ensemble`` / ``regex_only`` always wins.
+        """
+        from .injection_detector import resolve_injection_mode
+
         self.security_level = security_level
         self.reversible_masking = reversible_masking
+        self.injection_mode = resolve_injection_mode(injection_mode)
         self.injection_patterns = self._init_injection_patterns()
         self.malicious_patterns = self._init_malicious_patterns()
         self.pii_patterns = self._init_pii_patterns()
         self.privacy_rules = self._init_privacy_rules()
         self.pii_detector: Optional["PIIDetector"] = None  # lazy init avoids circular import
         self.security_weights = self._init_security_weights()
+        self._last_injection_result: Optional[Any] = None
 
     def _init_injection_patterns(self) -> List[Dict[str, Any]]:
         """Initialize prompt injection detection patterns."""
         return [
             # Direct instruction overrides
             {
-                "pattern": r"(?i)(ignore|forget|disregard)\s+(previous|all|above|earlier)\s+(instructions|prompts|commands)",
+                "pattern": r"(?i)(ignore|forget|disregard)\s+((?:all|any|the)\s+)?(previous|all|above|earlier|prior)\s+(instructions|prompts|commands|directives)",
                 "threat": ThreatType.INJECTION,
                 "severity": 0.9,
                 "description": "Direct instruction override attempt",
@@ -428,28 +441,66 @@ class SecurityLayer:
         )
 
     def _detect_injection(self, content: str) -> Tuple[float, List[ThreatType]]:
-        """Detect prompt injection attempts with confidence thresholds."""
-        max_severity = 0.0
-        detected_threats = []
+        """Detect prompt injection via calibrated ensemble (default) or regex_only.
 
-        # High confidence threshold to reduce false positives
-        CONFIDENCE_THRESHOLD = 0.8
+        Replaces the old ``confidence >= 0.8`` keep-else-drop regex gate.
+        Decision bands come from ``config/thresholds.yaml``; uncertain scores
+        route to REVIEW (fail-closed), never silent ALLOW.
+        """
+        from asha.core.ml.calibration import Verdict
+        from .injection_detector import get_injection_detector
 
-        for pattern_info in self.injection_patterns:
-            pattern = pattern_info.get("pattern")
-            severity = float(pattern_info.get("severity", 0.5))
-            threat = pattern_info.get("threat")
-            confidence = float(pattern_info.get("confidence", severity))
+        detector = get_injection_detector(
+            mode=self.injection_mode,
+            patterns=self.injection_patterns,
+        )
+        result = detector.detect(content)
+        self._last_injection_result = result
 
-            if not isinstance(pattern, str) or not isinstance(threat, ThreatType):
-                continue
+        detected_threats: List[ThreatType] = []
+        if result.verdict is Verdict.BLOCK:
+            detected_threats.append(ThreatType.INJECTION)
+            # Preserve legacy threat subtypes when regex also fired.
+            for pattern_info in self.injection_patterns:
+                pattern = pattern_info.get("pattern")
+                threat = pattern_info.get("threat")
+                if (
+                    isinstance(pattern, str)
+                    and isinstance(threat, ThreatType)
+                    and threat is not ThreatType.INJECTION
+                    and re.search(pattern, content)
+                ):
+                    if threat not in detected_threats:
+                        detected_threats.append(threat)
+            return float(result.probability), detected_threats
 
-            # Only detect high-confidence threats
-            if confidence >= CONFIDENCE_THRESHOLD and re.search(pattern, content):
-                max_severity = max(max_severity, severity)
-                detected_threats.append(threat)
+        if result.verdict is Verdict.REVIEW:
+            # Fail-closed for BLOCK; REVIEW adds a threat only with corroboration
+            # (regex hit or probability at/above block_min), not solely because
+            # security_level is HIGH — that broke preserve_intent on benign text.
+            try:
+                from asha.core.ml.calibration import get_bands, load_thresholds
 
-        return max_severity, detected_threats
+                band_key = (
+                    "injection_lite"
+                    if str(self.injection_mode).lower() == "lite"
+                    else "injection"
+                )
+                bands = get_bands(band_key, thresholds=load_thresholds())
+            except Exception:
+                bands = None
+            block_min = bands.block_min if bands is not None else 0.85
+            # Near-block REVIEW scores or regex corroboration become threats;
+            # mid-band REVIEW alone stays non-blocking (preserve_intent-safe).
+            escalate = (
+                result.regex_hit
+                or result.probability >= block_min * 0.95
+            )
+            if escalate:
+                detected_threats.append(ThreatType.INJECTION)
+            return float(result.probability), detected_threats
+
+        return 0.0, detected_threats
 
     def _get_pii_detector(self) -> "PIIDetector":
         """Lazy initialization of PII detector to avoid circular import."""
@@ -780,9 +831,10 @@ class SecurityLayer:
             (r"(?i)(alter\s+table)", "[SQL_COMMAND_REMOVED]"),
             (r"(?i)(union\s+select)", "[SQL_COMMAND_REMOVED]"),
             (r"(?i)(select\s+.*\s+from)", "[SQL_COMMAND_REMOVED]"),
-            # Prompt injection patterns - more comprehensive
+            # Prompt injection — keep aligned with injection_detector patterns
+            # and tolerate multi-space obfuscation ("ignore   all   previous…").
             (
-                r"(?i)(ignore\s+(all|previous|above|earlier)\s+instructions)",
+                r"(?i)(ignore|forget|disregard)\s+((?:all|any|the)\s+)?(previous|all|above|earlier|prior)\s+(instructions|prompts|commands|directives)",
                 "[INSTRUCTION_IGNORED]",
             ),
             (r"(?i)(forget\s+(everything|all|previous))",
@@ -796,6 +848,10 @@ class SecurityLayer:
             (r"(?i)(show\s+system\s+prompt)", "[REQUEST_BLOCKED]"),
             (r"(?i)(tell\s+me\s+your\s+secrets)", "[REQUEST_BLOCKED]"),
             (r"(?i)(act\s+as\s+if\s+you\'re\s+dan)", "[ROLEPLAY_BLOCKED]"),
+            (
+                r"(?i)(you\s+are\s+now|act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(a\s+)?(jailbreak|uncensored|unrestricted)",
+                "[ROLEPLAY_BLOCKED]",
+            ),
             (r"(?i)(you\s+are\s+now\s+unrestricted)", "[ROLEPLAY_BLOCKED]"),
             (r"(?i)(bypass\s+security)", "[BYPASS_BLOCKED]"),
             (r"(?i)(override\s+restrictions)", "[BYPASS_BLOCKED]"),

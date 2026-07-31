@@ -145,6 +145,33 @@ class AnchoredToolDelegate:
         return getattr(self._inner, name)
 
 
+def _register_caps_from_tool(tool: Any, name: str) -> None:
+    """Register ToolCapabilities from tool attrs / _meta when present."""
+    from .tool_capabilities import ToolCapabilities, get_tool_capabilities, register_tool_capabilities
+
+    caps_obj = getattr(tool, "asha_capabilities", None) or getattr(tool, "_asha_capabilities", None)
+    meta = getattr(tool, "_meta", None) or getattr(tool, "metadata", None)
+    if caps_obj is None and isinstance(meta, dict):
+        caps_obj = meta.get("asha_capabilities") or meta.get("asha")
+    if isinstance(caps_obj, ToolCapabilities):
+        register_tool_capabilities(name, caps_obj)
+        return
+    if isinstance(caps_obj, dict):
+        register_tool_capabilities(
+            name,
+            ToolCapabilities(
+                reads_data=bool(caps_obj.get("reads_data", False)),
+                writes_data=bool(caps_obj.get("writes_data", False)),
+                network_egress=bool(caps_obj.get("network_egress", False)),
+                destructive=bool(caps_obj.get("destructive", False)),
+                category=caps_obj.get("category"),
+            ),
+        )
+        return
+    # Touch registry so heuristics are cached via defaults path
+    get_tool_capabilities(name)
+
+
 def wrap_tool(
     tool: Any,
     runtime: AnchorRuntime,
@@ -156,7 +183,9 @@ def wrap_tool(
         return tool
     if getattr(tool, "_anchor_wrapped", False):
         return tool  # type: ignore[return-value]
-    return AnchoredToolDelegate(tool, runtime, name=name)
+    delegate = AnchoredToolDelegate(tool, runtime, name=name)
+    _register_caps_from_tool(tool, delegate.name)
+    return delegate
 
 
 def wrap_callable_tool(

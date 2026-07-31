@@ -179,9 +179,13 @@ def test_anchor_crewai_accepts_capability_stubs() -> None:
 
   agent = anchor_crewai(Agent(tools=[_StubTool()]))
   assert hasattr(agent, "execute_task")
+  assert callable(getattr(agent, "execute_task"))
 
   crew = anchor_crewai(Crew([agent], [_StubTask("Write locally.")]))
   assert hasattr(crew, "kickoff")
+  assert callable(getattr(crew, "kickoff"))
+  # Capability stubs remain attached after wrapping.
+  assert getattr(agent, "tools", None) is not None or hasattr(agent, "execute_task")
 
 
 def test_anchor_crewai_blocks_disallowed_tool_via_delegate() -> None:

@@ -65,13 +65,19 @@ class TestAdapterFactory:
     def test_create_gpt_is_case_insensitive(self):
         pytest.importorskip("openai")
         adapter = AdapterFactory.create("GPT-4")
-        assert isinstance(adapter, OpenAIAdapter)
+        assert type(adapter).__name__ == "OpenAIAdapter"
+        assert adapter.model == "GPT-4"
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     def test_create_gpt_prefix_routing(self):
         pytest.importorskip("openai")
-        assert isinstance(AdapterFactory.create("gpt"), OpenAIAdapter)
-        assert isinstance(AdapterFactory.create("gpt-custom"), OpenAIAdapter)
+        gpt_adapter = AdapterFactory.create("gpt")
+        assert type(gpt_adapter).__name__ == "OpenAIAdapter"
+        assert gpt_adapter.model == "gpt"
+
+        custom_adapter = AdapterFactory.create("gpt-custom")
+        assert type(custom_adapter).__name__ == "OpenAIAdapter"
+        assert custom_adapter.model == "gpt-custom"
 
         with pytest.raises(ValueError, match="Unsupported provider/model"):
             AdapterFactory.create("my-gpt-model")

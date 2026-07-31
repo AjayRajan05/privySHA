@@ -19,7 +19,9 @@ Prevents silent logic corruption and intent preservation failures.
 """
 
 import re
-from typing import Tuple, List
+from typing import Literal, Tuple, List
+
+SimilarityMode = Literal["auto", "embedding", "jaccard"]
 
 
 class SafetyConstraints:
@@ -30,7 +32,14 @@ class SafetyConstraints:
     from silently changing prompt intent or breaking logic.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        similarity_mode: SimilarityMode = "auto",
+        allow_hash_fallback: bool = False,
+    ) -> None:
+        self.similarity_mode = similarity_mode
+        self.allow_hash_fallback = allow_hash_fallback
         # Words that indicate negation - must be preserved
         self.negative_keywords = [
             "not",
@@ -148,11 +157,12 @@ class SafetyConstraints:
                 f"Logic operators removed: {original_logic - optimized_logic} - STRUCTURE RISK"
             )
 
-        # Semantic similarity check (HIGH)
-        similarity = self._calculate_semantic_similarity(original, optimized)
-        if similarity < 0.8:
+        # Semantic similarity check (HIGH) — MiniLM cosine vs calibrated floor
+        sim = self._similarity_result(original, optimized)
+        if not sim.is_safe:
             violations.append(
-                f"Low semantic similarity: {similarity:.2f} - INTENT CORRUPTION RISK"
+                f"Low semantic similarity: {sim.score:.2f} < floor {sim.floor:.2f} "
+                f"({sim.method}) - INTENT CORRUPTION RISK"
             )
 
         return len(violations) == 0, violations
@@ -180,24 +190,19 @@ class SafetyConstraints:
         text_lower = text.lower()
         return sum(1 for word in self.logic_operators if word in text_lower)
 
+    def _similarity_result(self, original: str, optimized: str):
+        from asha.core.ml.optimizer_similarity import compute_similarity
+
+        return compute_similarity(
+            original,
+            optimized,
+            mode=self.similarity_mode,
+            allow_hash_fallback=self.allow_hash_fallback,
+        )
+
     def _calculate_semantic_similarity(self, original: str, optimized: str) -> float:
-        """
-        Calculate semantic similarity using Jaccard similarity.
-
-        Fast and lightweight - suitable for production use.
-        """
-        # Tokenize and normalize
-        original_tokens = set(original.lower().split())
-        optimized_tokens = set(optimized.lower().split())
-
-        # Calculate Jaccard similarity
-        intersection = len(original_tokens & optimized_tokens)
-        union = len(original_tokens | optimized_tokens)
-
-        if union == 0:
-            return 1.0
-
-        return intersection / union
+        """Return similarity score (embedding cosine or Jaccard fallback)."""
+        return self._similarity_result(original, optimized).score
 
     def should_revert_optimization(self, original: str, optimized: str) -> bool:
         """
@@ -213,9 +218,8 @@ class SafetyConstraints:
         if original_negations > optimized_negations:
             return True
 
-        # Revert if semantic similarity too low
-        similarity = self._calculate_semantic_similarity(original, optimized)
-        if similarity < 0.7:
+        sim = self._similarity_result(original, optimized)
+        if not sim.is_safe:
             return True
 
         return False
@@ -224,6 +228,7 @@ class SafetyConstraints:
         """Generate detailed safety report."""
         is_safe, violations = self.check_safety(original, optimized)
 
+        sim = self._similarity_result(original, optimized)
         return {
             "is_safe": is_safe,
             "violations": violations,
@@ -239,8 +244,8 @@ class SafetyConstraints:
                 "original": self._count_constraints(original),
                 "optimized": self._count_constraints(optimized),
             },
-            "semantic_similarity": self._calculate_semantic_similarity(
-                original, optimized
-            ),
+            "semantic_similarity": sim.score,
+            "similarity_floor": sim.floor,
+            "similarity_method": sim.method,
             "recommendation": "Keep original" if not is_safe else "Optimization safe",
         }

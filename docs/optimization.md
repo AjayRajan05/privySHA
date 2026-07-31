@@ -1,12 +1,12 @@
 # Optimization
 
-**ASHA v0.4.2** - token reduction via MSDPC.
+How to reduce prompt tokens with ASHA's optimizer, alone or as part of `process()`.
 
 ---
 
-## optimize()
+## Compress tokens only
 
-Token compression only - no PII masking, no compile stage:
+`optimize()` runs token compression only — no PII masking, no compile stage:
 
 ```python
 from asha import optimize
@@ -18,15 +18,16 @@ print(result.metrics.token_reduction_pct)
 
 ---
 
-## process() with optimization
+## Optimize as part of process()
 
 Full path includes security + compile + optimize:
 
 ```python
 from asha import process
 
-result = process("long verbose prompt...", token_budget=1200)
+result = process("long verbose prompt please analyze carefully", token_budget=1200)
 print(result.metrics.tokens_saved)
+print(result.metrics.token_reduction_pct)
 ```
 
 ---
@@ -34,6 +35,7 @@ print(result.metrics.tokens_saved)
 ## Skip optimization when safe
 
 ```python
+from asha import process
 from asha.core.policy_config import PolicyConfig
 
 process(
@@ -50,24 +52,28 @@ When no PII or threats are found, the original prompt may be returned unchanged.
 
 | Mode | Optimization level |
 |------|-------------------|
-| `balanced` | Standard MSDPC |
-| `strict` | Aggressive + fail-closed |
+| `balanced` | Standard compression |
+| `strict` | Aggressive + fail-closed security |
 | `lite` | Reduced policy features |
 | `off` | Skipped |
 
-For minimum latency: `mode="off"` or `optimize()` alone on already-clean prompts.
+For minimum latency: `mode="off"` or call `optimize()` alone on already-clean prompts.
 
 ---
 
-## Metrics
+## Read metrics
 
 ```python
+from asha import process
+
 result = process(prompt)
 m = result.metrics
 print(m.token_reduction_pct)
 print(m.tokens_saved)
 print(m.processing_time_ms)
 ```
+
+Token-reduction figures vary widely by input shape — measure with [performance.md](performance.md) rather than assuming a fixed percentage.
 
 ---
 
@@ -83,5 +89,5 @@ print(m.processing_time_ms)
 
 ## Related
 
-- [performance-tuning.md](performance-tuning.md)
-- [benchmarks.md](benchmarks.md)
+- [Performance](performance.md)
+- [Core concepts](core-concepts.md)

@@ -9,8 +9,20 @@ Forward-looking plan from **v0.4.2** (July 2026). Dates are estimates.
 - Package rename: `privysha` → `asha` (PyPI, imports, CLI)
 - **ANCHOR** mission-aware agent governance (`anchor()`, guards, sandbox, human approval)
 - Framework adapters: CrewAI, LangChain, AutoGen, LlamaIndex, MCP, LangGraph, generic
+- ANCHOR extras (`asha-ai[anchor]`, per-framework installs) + golden-path CI
 - CI/publish workflows updated for `asha` package layout
 - Integration test job with optional framework deps in CI
+
+## Productization (Phase 4 — done)
+
+- Published [support policy](support.md) / repo `SUPPORT.md`
+- Community intake: GitHub Issues templates + Discussions as primary channel
+- Docs freeze pass for 0.4.2 preview claims (status, ANCHOR matrix, install tiers)
+- Post-release setup done for Discussions, Slack invite, and `asha-models-0.4.2` asset
+
+## Current focus — finish 0.4.2
+
+Version stays **0.4.2**. No rush to 1.0. Keep the developer-preview story honest and ship remaining surface polish. A future 1.0 is documented for later — see [production-readiness.md](production-readiness.md) — not an active milestone.
 
 ## Shipped in v0.4.1
 
@@ -35,14 +47,11 @@ Forward-looking plan from **v0.4.2** (July 2026). Dates are estimates.
 
 ---
 
-## v1.0.0 (target: after community feedback)
+## v1.0.0 (deferred — only after 0.4.x is solid)
 
-- Stable public API guarantee
-- Migration guide finalized
-- Production readiness checklist (security review, SLA docs)
-- Documented support policy
+Not scheduled. Stay on **0.4.2** until the maintainer is ready to acknowledge a stable API. Checklist for that eventual day: [production-readiness.md](production-readiness.md).
 
-**Not committed for 1.0:** managed cloud service, multi-tenant SaaS.
+**Not committed for 1.0:** managed cloud service, multi-tenant SaaS, paid SLA.
 
 ---
 
@@ -65,4 +74,4 @@ Forward-looking plan from **v0.4.2** (July 2026). Dates are estimates.
 - Prompt caching engine
 - Native function-calling in `asha.Agent` tool loop
 
-See [developer-preview.md](developer-preview.md) for current limitations.
+See [status.md](status.md) for current limitations. Preview/experimental APIs: [experimental-features.md](experimental-features.md).

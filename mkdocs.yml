@@ -1,8 +1,8 @@
 site_name: ASHA
-site_description: Mission-aware agent governance (ANCHOR) plus LLM security and optimization (v0.4.2)
-site_url: https://ajayrajan05.github.io/privySHA/
-repo_url: https://github.com/AjayRajan05/privySHA
-repo_name: AjayRajan05/privySHA
+site_description: Mission-aware agent governance (ANCHOR) plus LLM security and optimization (v0.4.2 developer preview)
+site_url: https://ajayrajan05.github.io/ASHA/
+repo_url: https://github.com/AjayRajan05/ASHA
+repo_name: AjayRajan05/ASHA
 
 theme:
   name: material
@@ -39,32 +39,30 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Developer Preview: developer-preview.md
-  - Quickstart: quickstart.md
-  - ANCHOR Runtime: anchor.md
-  - Core Concepts: core-concepts.md
-  - Architecture: architecture.md
-  - API Reference: api-reference.md
-  - Security: security.md
-  - Compliance: compliance.md
-  - Integrations: integrations.md
-  - Processing Flow: pipeline.md
-  - Prompt IR: prompt-ir.md
-  - Optimization: optimization.md
-  - Debugging: debugging.md
-  - Performance Tuning: performance-tuning.md
-  - Troubleshooting: troubleshooting.md
-  - FAQ: faq.md
-  - Examples: examples.md
-  - Migration: migration.md
-  - Migration v0.4: migration-v0.4.md
-  - Deprecations: deprecations.md
-  - Versioning: versioning.md
-  - Benchmarks: benchmarks.md
-  - Local Model Advisor: local-advisor.md
-  - Routing: routing.md
-  - Model Gateway: model-gateway.md
-  - Publishing: publishing.md
-  - Roadmap: roadmap.md
-  - Contributing: contributing.md
+  - Status: status.md
+  - Tutorial: tutorial.md
+  - How-to guides:
+      - Integrations: integrations.md
+      - Security: security.md
+      - Optimization: optimization.md
+      - Debugging: debugging.md
+      - Troubleshooting: troubleshooting.md
+      - Performance: performance.md
+      - Migration v0.4: migration-v0.4.md
+  - Reference:
+      - API Reference: api-reference.md
+      - Examples: examples.md
+      - Versioning: versioning.md
+      - Deprecations: deprecations.md
+  - Explanation:
+      - Core Concepts: core-concepts.md
+      - Architecture: architecture.md
+      - ANCHOR Runtime: anchor.md
+      - Compliance: compliance.md
+      - Roadmap: roadmap.md
+      - Production readiness (0.4.2): production-readiness.md
+      - Experimental features: experimental-features.md
+  - Support:
+      - Support policy: support.md
+      - FAQ: faq.md
+      - Contributing: contributing.md

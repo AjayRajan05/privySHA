@@ -28,6 +28,7 @@ def sanitize_text(
     mode: str = "balanced",
     max_retries: int = 0,
     timeout_seconds: Optional[float] = None,
+    pii_mode: str = "hybrid",
 ) -> SanitizeResult:
     """Security-only sanitization (PII masking, threat detection)."""
     from ..core.safety import is_fail_closed, resolve_safety_mode, should_raise_on_failure
@@ -45,7 +46,10 @@ def sanitize_text(
 
     def _run() -> Any:
         return run_security_only(
-            prompt, security_level=SecurityLevel.HIGH, reversible=reversible
+            prompt,
+            security_level=SecurityLevel.HIGH,
+            reversible=reversible,
+            pii_mode=pii_mode,
         )
 
     try:

@@ -39,7 +39,14 @@ class ScoringStage(BaseStage):
                 },
                 "phone": {
                     "personal_words": ["my", "personal", "mobile", "cell"],
-                    "context_words": ["phone", "call", "number", "contact"],
+                    "context_words": [
+                        "phone",
+                        "call",
+                        "number",
+                        "contact",
+                        "call me at",
+                        "whatsapp",
+                    ],
                     "boost_amount": 0.15,
                 },
                 "name": {
@@ -51,6 +58,40 @@ class ScoringStage(BaseStage):
                     "personal_words": ["my", "live", "home", "address"],
                     "context_words": ["address", "live", "located", "street"],
                     "boost_amount": 0.1,
+                },
+                "aadhaar": {
+                    "personal_words": ["my", "aadhaar", "aadhar", "uid"],
+                    "context_words": [
+                        "aadhaar",
+                        "aadhar",
+                        "uidai",
+                        "uid",
+                        "identity",
+                        "kyc",
+                    ],
+                    "boost_amount": 0.2,
+                },
+                "pan": {
+                    "personal_words": ["my", "pan"],
+                    "context_words": ["pan", "permanent account", "income tax", "kyc"],
+                    "boost_amount": 0.2,
+                },
+                "gstin": {
+                    "personal_words": ["our", "company", "gst"],
+                    "context_words": ["gstin", "gst", "tax", "invoice", "business"],
+                    "boost_amount": 0.2,
+                },
+                "credit_card": {
+                    "personal_words": ["my", "card"],
+                    "context_words": [
+                        "card",
+                        "credit",
+                        "debit",
+                        "visa",
+                        "mastercard",
+                        "payment",
+                    ],
+                    "boost_amount": 0.15,
                 },
             },
             "confidence_reducers": {
@@ -68,7 +109,9 @@ class ScoringStage(BaseStage):
                 "high_confidence": 0.85,
                 "medium_confidence": 0.6,
                 "low_confidence": 0.3,
-                "minimum_confidence": 0.2,
+                # Keep room for heuristic names (≈0.6) that pass stopword filters;
+                # structured regex hits are ~0.9. Stopword / IGNORECASE fixes handle FPs.
+                "minimum_confidence": 0.55,
             },
         }
 
@@ -142,33 +185,44 @@ class ScoringStage(BaseStage):
         weights = config.get(
             "base_confidence_weights", self.scoring_config["base_confidence_weights"]
         )
+        detector_alias = {
+            "regex": "regex",
+            "heuristics": "heuristic",
+            "heuristic": "heuristic",
+            "dictionary": "dictionary",
+            "contextual": "contextual",
+            "ner": "contextual",
+            "spacy_ner": "contextual",
+        }
 
         for entity in entities:
-            # Determine detection method from metadata or patterns
+            prior = float(entity.confidence)
             detection_method = self._determine_detection_method(entity)
-            base_confidence = weights.get(detection_method, 0.5)
+            method_key = detector_alias.get(detection_method, detection_method)
+            base_confidence = weights.get(method_key, 0.5)
 
             # Apply pattern-specific adjustments
             pattern_confidence = self._calculate_pattern_confidence(entity)
 
-            # Combine base confidence with pattern confidence
-            entity.confidence = (base_confidence + pattern_confidence) / 2
+            blended = (base_confidence + pattern_confidence) / 2
+            # Never discard a stronger detector score (regex/NER often land ~0.9).
+            entity.confidence = max(prior, blended) if prior > 0 else blended
 
             # Store detection method in metadata
-            entity.metadata["detection_method"] = detection_method
+            entity.metadata["detection_method"] = method_key
             entity.metadata["base_confidence"] = entity.confidence
 
         return entities
 
     def _determine_detection_method(self, entity: PIIEntity) -> str:
         """Determine the detection method for an entity"""
-        # Check entity metadata first
-        if "detection_method" in entity.metadata:
-            return cast(str, entity.metadata["detection_method"])
+        # Detectors tag metadata as "detector"; scoring historically used
+        # "detection_method" — honour both.
+        for key in ("detection_method", "detector"):
+            if key in entity.metadata and entity.metadata[key]:
+                return str(entity.metadata[key])
 
         # Determine based on entity characteristics
-        text = entity.text.lower()
-
         # Regex patterns (high precision)
         if any(char in entity.text for char in ["@", ".", "-", "(", ")"]):
             if "@" in entity.text and "." in entity.text:
@@ -185,7 +239,7 @@ class ScoringStage(BaseStage):
             return "dictionary"
 
         # Heuristic patterns
-        if entity.pii_type in ["address", "zip_code", "date_of_birth"]:
+        if entity.pii_type in ["address", "zip_code", "date_of_birth", "name"]:
             return "heuristic"
 
         # Default to contextual
@@ -243,6 +297,12 @@ class ScoringStage(BaseStage):
         )
 
         full_text = context.current_text.lower()
+        # Domains like example.com must not look like teaching markers.
+        teaching_text = re.sub(
+            r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}",
+            " ",
+            full_text,
+        )
 
         for entity in entities:
             original_confidence = entity.confidence
@@ -253,7 +313,7 @@ class ScoringStage(BaseStage):
 
                 # Check for personal words
                 for word in booster_config.get("personal_words", []):
-                    if word in full_text:
+                    if re.search(rf"\b{re.escape(word)}\b", full_text):
                         entity.confidence += booster_config.get(
                             "boost_amount", 0.1
                         ) / len(booster_config.get("personal_words", []))
@@ -262,17 +322,19 @@ class ScoringStage(BaseStage):
                 entity_window = self._get_entity_context(
                     entity, context, 50).lower()
                 for word in booster_config.get("context_words", []):
-                    if word in entity_window:
+                    if re.search(rf"\b{re.escape(word)}\b", entity_window):
                         entity.confidence += booster_config.get(
                             "boost_amount", 0.1
                         ) / len(booster_config.get("context_words", []))
 
-            # Apply confidence reducers
-            for word in reducers.get("example_words", []):
-                if word in full_text:
-                    entity.confidence -= reducers.get("reduction_amount", 0.25) / len(
-                        reducers.get("example_words", [])
-                    )
+            # Teaching reducers apply to soft types only; structured regex hits
+            # stay at detector strength unless the value itself is a placeholder.
+            if entity.pii_type not in self._STRUCTURED_PII:
+                for word in reducers.get("example_words", []):
+                    if re.search(rf"\b{re.escape(word)}\b", teaching_text):
+                        entity.confidence -= reducers.get("reduction_amount", 0.25) / len(
+                            reducers.get("example_words", [])
+                        )
 
             # Ensure confidence stays within bounds
             entity.confidence = max(0.0, min(1.0, entity.confidence))
@@ -292,6 +354,10 @@ class ScoringStage(BaseStage):
         end = min(len(context.current_text), entity.end + window_size)
         return context.current_text[start:end]
 
+    _STRUCTURED_PII = frozenset(
+        {"email", "phone", "ssn", "credit_card", "aadhaar", "pan", "api_key", "jwt_token", "bearer_token"}
+    )
+
     def _normalize_confidence(
         self, entities: List[PIIEntity], config: Dict[str, Any]
     ) -> List[PIIEntity]:
@@ -303,8 +369,16 @@ class ScoringStage(BaseStage):
         confidences = [e.confidence for e in entities]
         mean_confidence = sum(confidences) / len(confidences)
 
+        min_keep = float(
+            config.get("thresholds", {}).get(
+                "minimum_confidence",
+                self.scoring_config["thresholds"]["minimum_confidence"],
+            )
+        )
+
         # Apply sigmoid-like normalization to spread scores
         for entity in entities:
+            original = entity.confidence
             # Normalize around mean
             normalized = (entity.confidence - mean_confidence) * 2 + 0.5
 
@@ -313,6 +387,15 @@ class ScoringStage(BaseStage):
 
             # Blend original and normalized
             entity.confidence = 0.7 * entity.confidence + 0.3 * sigmoid_normalized
+
+            # High-confidence structured regex hits must not be crushed below the
+            # mask floor by relative normalization against soft entities.
+            if entity.pii_type in self._STRUCTURED_PII and original >= 0.75:
+                entity.confidence = max(entity.confidence, min(1.0, original))
+            # Person names that already clear the mask floor should stay maskable
+            # when mixed with high-confidence structured PII (email/ssn).
+            elif entity.pii_type == "name" and original >= min_keep:
+                entity.confidence = max(entity.confidence, original)
 
             # Ensure bounds
             entity.confidence = max(0.0, min(1.0, entity.confidence))
@@ -327,7 +410,7 @@ class ScoringStage(BaseStage):
         """Apply confidence threshold filtering"""
         thresholds = config.get(
             "thresholds", self.scoring_config["thresholds"])
-        min_confidence = thresholds.get("minimum_confidence", 0.2)
+        min_confidence = thresholds.get("minimum_confidence", 0.55)
 
         filtered_entities = []
         filtered_count = 0
@@ -340,6 +423,9 @@ class ScoringStage(BaseStage):
                 continue
 
             if entity.confidence >= min_confidence:
+                if entity.pii_type == "name" and _is_stopword_heavy_name(entity.text):
+                    filtered_count += 1
+                    continue
                 # Add threshold level to metadata
                 if entity.confidence >= thresholds.get("high_confidence", 0.85):
                     entity.metadata["confidence_level"] = "high"
@@ -460,3 +546,50 @@ class ScoringStage(BaseStage):
                 "entities_processed": len(entities),
             },
         )
+
+
+_NAME_STOP = frozenset(
+    {
+        "please",
+        "help",
+        "me",
+        "my",
+        "with",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "to",
+        "for",
+        "of",
+        "in",
+        "on",
+        "is",
+        "are",
+        "subscription",
+        "cancellation",
+        "customer",
+        "support",
+        "billing",
+        "issue",
+        "call",
+        "today",
+        "need",
+        "explain",
+        "difference",
+        "between",
+        "supervised",
+        "unsupervised",
+        "learning",
+    }
+)
+
+
+def _is_stopword_heavy_name(text: str) -> bool:
+    tokens = [t for t in re.findall(r"[A-Za-z]+", text.lower()) if t]
+    if not tokens:
+        return True
+    return all(t in _NAME_STOP for t in tokens) or (
+        len(tokens) <= 2 and any(t in _NAME_STOP for t in tokens)
+    )

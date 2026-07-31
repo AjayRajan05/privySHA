@@ -1,0 +1,60 @@
+name: Bug report
+description: Something unexpected in ASHA (lite, hardened, or ANCHOR)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. For security issues, email per [SECURITY.md](https://github.com/AjayRajan05/ASHA/blob/main/SECURITY.md) instead.
+  - type: input
+    id: asha_version
+    attributes:
+      label: ASHA version
+      placeholder: e.g. 0.4.2
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.11.8
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: e.g. Ubuntu 22.04 / Windows 11 / macOS 14
+    validations:
+      required: true
+  - type: input
+    id: extras
+    attributes:
+      label: Install extras (if any)
+      placeholder: e.g. asha-ai[hardened], asha-ai[anchor], none
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Smallest code / commands that show the bug
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Relevant environment variables
+      placeholder: ASHA_DISABLE_ML, ASHA_MODELS_DIR, ASHA_ANCHOR_INTERACTIVE, …

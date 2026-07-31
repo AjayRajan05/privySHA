@@ -73,6 +73,9 @@ def _create_langchain_tool_subclass(inner: Any, runtime: AnchorRuntime) -> Any:
         def _run(self, *args: Any, **kwargs: Any) -> Any:
             return delegate._run(*args, **kwargs)
 
+        async def _arun(self, *args: Any, **kwargs: Any) -> Any:
+            return self._run(*args, **kwargs)
+
     return _AnchoredLC()
 
 
@@ -233,6 +236,8 @@ def anchor_langchain(
     """
     Wrap a LangChain AgentExecutor or Runnable with ANCHOR mission governance.
 
+    Requires ``pip install asha[langchain]`` when using real LangChain objects.
+
     Example::
 
         from langchain.agents import create_react_agent, AgentExecutor
@@ -242,6 +247,11 @@ def anchor_langchain(
         executor = anchor_langchain(executor, risk_tolerance="LOW")
         result = executor.invoke({"input": "Analyze trends locally."})
     """
+    module = type(target).__module__ or ""
+    if "langchain" in module:
+        from .deps import require_module
+
+        require_module("langchain_core", adapter="anchor_langchain")
     runtime = runtime or AnchorRuntime(
         risk_tolerance=risk_tolerance,
         warn_policy=warn_policy,

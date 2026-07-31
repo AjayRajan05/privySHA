@@ -458,9 +458,14 @@ class UniversalComposer:
 
 # Convenience functions for easy composition
 def compose_with_instructor(
-    client: Any, config: Optional[CompositionConfig] = None
+    client: Any = None, config: Optional[CompositionConfig] = None
 ) -> ASHAInstructorComposer:
-    """Create Instructor composer."""
+    """Create Instructor composer.
+
+    ``client`` is accepted for call-site compatibility with Instructor wrappers;
+    composition config is what the composer currently uses.
+    """
+    _ = client
     return ASHAInstructorComposer(config)
 
 

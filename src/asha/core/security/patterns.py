@@ -32,11 +32,15 @@ PII_PATTERN_STRINGS: Dict[str, List[str]] = {
     ],
     "phone": [
         r"\b\d{3}-\d{3}-\d{4}\b",
-        r"\b\(\d{3}\)\s*\d{3}[-.]?\d{4}\b",
+        # Parentheses are non-word chars — \b before '(' fails after whitespace.
+        r"(?<![\w)])\(\d{3}\)\s*\d{3}[-.]?\d{4}\b",
         r"\b\d{3}\.\d{3}\.\d{4}\b",
         r"\b\d{10}\b",
         r"\b\+1[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{4}\b",
-        r"\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+        r"(?<!\w)\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+        # Indian mobiles (+91 / 10-digit starting 6-9)
+        r"\b(?:\+91[\s-]?)?[6-9]\d{9}\b",
+        r"\b(?:\+91[\s-]?)?\d{5}[\s-]?\d{5}\b",
     ],
     "ssn": [
         r"\b\d{3}-\d{2}-\d{4}\b",
@@ -47,6 +51,17 @@ PII_PATTERN_STRINGS: Dict[str, List[str]] = {
         r"\b\d{4}\s\d{4}\s\d{4}\s\d{4}\b",
         r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
         r"\b\d{16}\b",
+    ],
+    # Indian identity formats
+    "aadhaar": [
+        r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b",
+        r"\b[2-9]\d{11}\b",
+    ],
+    "pan": [
+        r"\b[A-Z]{5}[0-9]{4}[A-Z]\b",
+    ],
+    "gstin": [
+        r"\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b",
     ],
     "address": [
         r"\d+\s+[A-Z][a-z]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)\b",

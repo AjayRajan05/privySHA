@@ -74,7 +74,7 @@ class PolicyConfig:
     debug_diff: bool = False
 
     # Advanced processing knobs (use via policy=PolicyConfig(...))
-    pii_mode: str = "rule"
+    pii_mode: str = "hybrid"
     reversible: bool = False
     preserve_intent: bool = False
     security_level: str = "medium"
@@ -180,7 +180,7 @@ class PolicyConfig:
             compile=compile,
             optimize=optimize,
             safety_mode=safety_mode_from_policy_mode(mode),
-            pii_mode=overrides.pop("pii_mode", "rule"),
+            pii_mode=overrides.pop("pii_mode", "hybrid"),
             reversible=overrides.pop("reversible", False),
             debug=overrides.pop("debug", False),
             extra=overrides or None,

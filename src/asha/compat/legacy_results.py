@@ -30,7 +30,8 @@ def process_result_to_legacy_dict(result: ProcessResult) -> Dict[str, Any]:
         "success": not result.degraded,
         "prompts": {
             "original": result.original,
-            "sanitized": result.original,
+            # Never re-leak original PII under the sanitized key.
+            "sanitized": result.output if result.privacy_applied else result.original,
             "compiled": result.output,
             "optimized": result.output,
         },

@@ -25,10 +25,12 @@ def test_mode_strict_masks_pii():
 
 
 def test_mode_lite_processes_without_crash():
-    prompt = "Hello, please summarize this document."
+    prompt = "Hello, please summarize this document about quarterly revenue."
     result = process(prompt, mode="lite")
     assert isinstance(result, ProcessResult)
-    assert len(result.output) > 0
+    out = output_of(result).lower()
+    assert len(out) > 0
+    assert "summarize" in out or "document" in out or "quarterly" in out or "revenue" in out
 
 
 def test_privacy_false_skips_masking_in_balanced():

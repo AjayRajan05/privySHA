@@ -1,14 +1,27 @@
 # Security
 
-**ASHA v0.4.2** - PII detection, masking, and prompt injection checks.
+How to detect and mask PII, check prompt-injection patterns, and choose fail-closed vs fail-open behavior.
 
-Security runs as the first engine in `process()` and is the sole engine in `sanitize()`.
+Security is the first engine in `process()` and the only engine in `sanitize()`.
+
+!!! note "Developer preview"
+    Pin `asha==0.4.2`. Public docs describe *what* is defended against and the general shape of the defense (layered detection, calibrated fail-closed behavior) — not internal scoring mechanics.
 
 ---
 
-## Detected PII types
+## Detect PII and threats
 
-Rule-based detection (`core/security/pii_detector.py`, patterns in `core/security/patterns.py`):
+```python
+from asha import process, sanitize
+
+result = process("Contact john@company.com or 555-123-4567", mode="balanced")
+print(result.output)
+print(result.security.pii_detected)
+print(result.security.threats)
+print(result.security.threat_level)
+```
+
+### Common PII types (rule-based path)
 
 | Type | Examples |
 |------|----------|
@@ -23,47 +36,36 @@ Rule-based detection (`core/security/pii_detector.py`, patterns in `core/securit
 
 Teaching placeholders like `test@example.com` are skipped.
 
----
-
-## Mask format
-
-```
-john@example.com  →  [EMAIL_HASH]_a1b2c3
-555-123-4567      →  [PHONE_HASH]_d4e5f6
-sk-abc123...      →  [REDACTED]
-```
+Mask tokens look like `[EMAIL_HASH]_…`, `[PHONE_HASH]_…`, or `[REDACTED]` for high-risk secrets.
 
 ---
 
-## PII detection mode
+## Document inputs (PDF / DOCX / text files)
 
-Set via `PolicyConfig`, not a top-level kwarg:
+`process()`, `sanitize()`, and `optimize()` accept a **file path**, `Path`, or **bytes** (pass `filename=` for bytes). Text is extracted (no OCR), then the normal PII/security pipeline runs.
 
 ```python
-from asha import process
-from asha.core.policy_config import PolicyConfig
+from asha import sanitize, process
+from pathlib import Path
 
-process("Contact john@example.com", policy=PolicyConfig(pii_mode="rule"))
-process("...", policy=PolicyConfig(pii_mode="hybrid"))   # needs asha[ml]
+sanitize(Path("report.pdf"))          # extract + mask
+process("notes.docx", mode="balanced")
+sanitize(raw_bytes, filename="memo.docx")
 ```
 
-| `pii_mode` | Description | Install |
-|------------|-------------|---------|
-| `rule` | Regex + heuristic (default) | Core only |
-| `hybrid` | Rules + ML pipeline | `asha[ml]` |
-| `ml_only` | Experimental ML-only | `asha[ml]` |
+Supported text documents on the base install: `.txt`, `.md`, `.csv`, `.html`, `.pdf`, `.docx`.
 
-Missing ML deps fall back to `rule` with a warning.
+With **`wrap_llm`**, local file attachments in the request (message file parts, `files=` / path kwargs the wrapper can see) are extracted and PII-masked **before** the call is sent to the provider. Opaque provider `file_id` uploads without local bytes cannot be read — upload masked text instead, or pass a local path/bytes the wrapper can see.
 
 ---
 
-## Safety modes
+## Choose a safety mode
 
 ```python
 from asha import process, sanitize
 
-process(prompt, mode="balanced")  # fail-open fallback
-process(prompt, mode="strict")      # raises ASHAProcessingError
+process(prompt, mode="balanced")  # fail-open fallback (default)
+process(prompt, mode="strict")    # raises ASHAProcessingError on total failure
 sanitize(prompt, mode="strict")
 ```
 
@@ -75,7 +77,30 @@ sanitize(prompt, mode="strict")
 
 ---
 
-## sanitize() only
+## Configure PII mode
+
+Set via `PolicyConfig` (not a top-level kwarg on `process()`):
+
+```python
+from asha import process
+from asha.core.policy_config import PolicyConfig
+
+process("Contact john@example.com", policy=PolicyConfig(pii_mode="rule"))
+process("...", policy=PolicyConfig(pii_mode="lite"))     # alias of rule-style lite path
+process("...", policy=PolicyConfig(pii_mode="hybrid"))   # default; needs asha-ai[ml] for full NER
+```
+
+| `pii_mode` | Description | Install |
+|------------|-------------|---------|
+| `hybrid` | Default — rules + ML when available; soft-falls back without ML deps | Core; full NER needs `asha-ai[ml]` |
+| `rule` / `lite` | Regex + heuristic only | Core only |
+| `ml_only` | Experimental ML-only path | `asha-ai[ml]` |
+
+For stronger classical ML detectors, install `asha-ai[hardened]`. Detector weights **download automatically** on first use into a local cache (no permission prompt). Override with `ASHA_MODELS_DIR` for air-gapped installs, or set `ASHA_DISABLE_MODEL_DOWNLOAD=1` to force lite fallbacks. Base installs need no model files — that is the path meant for everyone.
+
+---
+
+## Sanitize only
 
 ```python
 from asha import sanitize
@@ -101,9 +126,11 @@ result = sanitize(
 restored = unmask(llm_output, result.security.masking_map)
 ```
 
+Store `masking_map` securely — it can reverse pseudonymization.
+
 ---
 
-## wrap_llm security
+## Secure an existing SDK client
 
 ```python
 from asha.integrations import wrap_llm
@@ -111,19 +138,26 @@ from asha.integrations import wrap_llm
 client = wrap_llm(openai_client, mode="balanced")
 ```
 
-- Uses caller's `mode` for preprocessing
+- Uses the caller's `mode` for preprocessing
 - Infrastructure/wrap failures raise when `mode != "off"` (never silently send raw prompts)
 
 ---
 
-## Threat detection
+## Defense shape (explanation for operators)
 
-Injection patterns and threat scoring run inside `core/security/service.py`. Results appear in `result.security.threats` and `result.security.threat_level`.
+ASHA stacks multiple checks rather than relying on a single pattern list:
+
+1. Rule/heuristic detectors available on every install
+2. Optional ML/NER paths when extras are installed
+3. Calibrated fail-closed behavior on uncertain scores (escalate to REVIEW / restrictive defaults rather than silent ALLOW)
+
+Exact thresholds, model artifacts, and feature representations are intentionally not documented in public guides.
 
 ---
 
 ## Related
 
-- [compliance.md](compliance.md) - GDPR/CCPA tooling notes
-- [core-concepts.md](core-concepts.md) - modes and PolicyConfig
-- [faq.md](faq.md)
+- [Compliance](compliance.md)
+- [Core concepts](core-concepts.md)
+- [FAQ](faq.md)
+- [Status](status.md)

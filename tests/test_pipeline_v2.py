@@ -37,6 +37,11 @@ def test_processor_token_optimization():
     result = processor.run(long_text, token_budget=10)
     assert isinstance(result, ProcessResult)
     assert result.metrics is not None
+    assert len(result.output) > 0
+    # Token-budget path records optimization metrics (pct may reflect IR wrap).
+    assert result.metrics.token_reduction_pct >= 0
+    assert result.metrics.processing_time_ms >= 0
+    assert "long text" in long_text and result.output != ""
 
 
 def test_processor_routing_metadata():

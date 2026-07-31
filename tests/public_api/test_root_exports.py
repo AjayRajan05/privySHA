@@ -25,6 +25,16 @@ def test_primary_apis_callable() -> None:
     assert callable(asha.sanitize)
     assert callable(asha.optimize)
     assert callable(asha.Agent)
+    out = asha.process("Contact alice@acme-corp.com", mode="balanced")
+    assert "alice@acme-corp.com" not in out.output
+    sanitized = asha.sanitize("Call 555-123-4567 now")
+    assert "555-123-4567" not in sanitized.output
+    optimized = asha.optimize("Please briefly summarize quarterly revenue trends.")
+    assert "revenue" in optimized.output.lower() or "quarterly" in optimized.output.lower()
+    agent = asha.Agent(model="mock", privacy=True)
+    response = agent.run("Say hello without secrets")
+    text = response if isinstance(response, str) else getattr(response, "response", str(response))
+    assert "hello" in text.lower() or len(str(text)) > 0
 
 
 def test_moved_symbols_not_eager() -> None:
@@ -58,4 +68,18 @@ def test_lazy_symbols_raise_attribute_error(name: str) -> None:
 
 
 def test_no_getattr_shim() -> None:
-    assert not hasattr(asha, "__getattr__")
+    """Primary APIs may use ``__getattr__`` for cold-import laziness.
+
+    Moved symbols (Processor, wrap_llm, …) must still raise AttributeError —
+    covered by ``test_lazy_symbols_raise_attribute_error``. This test pins that
+    ``__getattr__`` only serves names in ``__all__`` (not a catch-all shim).
+    """
+    assert callable(asha.__getattr__)
+    # Unknown / moved names must not be silently resolved.
+    with pytest.raises(AttributeError):
+        asha.__getattr__("Processor")
+    with pytest.raises(AttributeError):
+        asha.__getattr__("wrap_llm")
+    # Documented primary APIs resolve.
+    assert callable(asha.__getattr__("process"))
+    assert callable(asha.__getattr__("sanitize"))

@@ -38,6 +38,9 @@ def test_public_api_imports():
     assert process is not None
     assert ThreatType is not None
     assert HybridPIIDetector is not None
+    result = process("Contact alice@acme-corp.com")
+    assert isinstance(result, ProcessResult)
+    assert "alice@acme-corp.com" not in result.output
 
 
 def test_dropin_process():
@@ -55,5 +58,8 @@ def test_agent_pipeline_trace():
         "Contact me at john@example.com"
     )
     result = agent.run(test_prompt, trace=True)
-    assert isinstance(result, AgentResult)
-    assert result.response is not None
+    assert type(result).__name__ == "AgentResult"
+    assert isinstance(result.response, str)
+    assert len(result.response) > 0
+    assert "john@example.com" not in result.response
+    assert "anomal" in result.response.lower() or "dataset" in result.response.lower() or len(result.response) > 5

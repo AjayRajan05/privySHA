@@ -190,9 +190,14 @@ class SmartRoutingAdapter:
     """
     Smart routing adapter that automatically selects the best model
     based on task type, cost, latency, and complexity.
+
+    Experimental in 0.4.2 — emits ``ASHAExperimentalWarning``.
     """
 
     def __init__(self, routing_config: Dict[str, str]) -> None:
+        from asha.exceptions import warn_experimental
+
+        warn_experimental("SmartRoutingAdapter / Agent(routing_config=...)")
         self.routing_config = routing_config
         self.adapters: Dict[str, UniversalModelAdapter] = {}
 

@@ -62,7 +62,7 @@ def test_check_version_compatibility_anthropic_supported(monkeypatch):
     monkeypatch.setitem(sys.modules, "anthropic", anthropic_mod)
     result = ap_mod._check_version_compatibility("anthropic")
     # 0.7.0 is in SUPPORTED_VERSIONS list
-    assert isinstance(result, bool)
+    assert result is True
 
 
 def test_check_version_compatibility_verbose_unsupported(monkeypatch, capsys):
@@ -190,9 +190,13 @@ def test_auto_patch_verbose_does_not_raise(monkeypatch):
         ap_mod, "_patch_huggingface", lambda proc, mode, verbose=False: None
     )
     result = auto_patch(enable=True, verbose=True)
-    # Should not raise; status may vary
     assert isinstance(result, dict)
-    auto_patch(enable=False)
+    # Enable path should report per-provider status keys when patch helpers run.
+    assert result == {} or any(
+        isinstance(v, (bool, str, dict, list)) for v in result.values()
+    )
+    disabled = auto_patch(enable=False)
+    assert isinstance(disabled, dict)
 
 
 # ---------------------------------------------------------------------------
