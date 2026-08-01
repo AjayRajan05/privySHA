@@ -37,6 +37,7 @@ build/
 .pytest_cache/
 .mypy_cache/
 .coverage
+.coverage.*
 coverage.xml
 coverage_report.json
 htmlcov/
@@ -107,3 +108,16 @@ dist/asha-models-*.zip
 # Local private checkout symlink / clone
 .private-artifacts/
 asha-private-artifacts/
+
+# Local PyPI upload helpers / tokens (never commit)
+.pypi_token
+.pypi_token.*
+.pypirc
+*.pypirc
+
+# Ephemeral release / auth scratch (local only)
+.release-notes-*.md
+.gh-auth-*.txt
+.gh-auth-out.txt
+.gh-auth-err.txt
+
