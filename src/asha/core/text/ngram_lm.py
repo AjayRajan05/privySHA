@@ -56,10 +56,11 @@ class CharNgramLM:
         table = data.get("log_probs") or data.get("trigrams") or {}
         if not isinstance(table, dict):
             raise TypeError("log_probs must be a dict")
-        n = int(data.get("n", 3))  # type: ignore[arg-type]
-        unseen = float(data.get("unseen_log_prob", -10.0))  # type: ignore[arg-type]
-        alphabet = int(data.get("alphabet_hint", 64))  # type: ignore[arg-type]
-        return cls(table, n=n, unseen_log_prob=unseen, alphabet_hint=alphabet)  # type: ignore[arg-type]
+        log_probs = {str(key): float(value) for key, value in table.items()}
+        n = int(str(data.get("n", 3)))
+        unseen = float(str(data.get("unseen_log_prob", -10.0)))
+        alphabet = int(str(data.get("alphabet_hint", 64)))
+        return cls(log_probs, n=n, unseen_log_prob=unseen, alphabet_hint=alphabet)
 
     @classmethod
     def from_counts(

@@ -10,7 +10,7 @@ from pydantic import PrivateAttr
 try:
     from crewai.tools import BaseTool as CrewAIBaseTool
 except ImportError:  # pragma: no cover - optional dependency
-    CrewAIBaseTool = object  # type: ignore[misc, assignment]
+    CrewAIBaseTool = object
 
 from ..llm_guard import evaluate_llm_tool_calls
 from ..runtime import AnchorRuntime, current_anchor_runtime
@@ -161,23 +161,23 @@ class _AnchoredLLMProxy:
                     )
                     return response
 
-                litellm.completion = guarded_completion  # type: ignore[assignment]
+                litellm.completion = guarded_completion
             except ImportError:
                 original_completion = None
 
             if original_handle is not None:
-                self._llm._handle_tool_call = guarded_handle_tool_call  # type: ignore[method-assign]
+                self._llm._handle_tool_call = guarded_handle_tool_call
             return self._llm.call(*args, **kwargs)
         finally:
             try:
                 import litellm
 
                 if "original_completion" in locals() and original_completion is not None:
-                    litellm.completion = original_completion  # type: ignore[assignment]
+                    litellm.completion = original_completion
             except ImportError:
                 pass
             if original_handle is not None:
-                self._llm._handle_tool_call = original_handle  # type: ignore[method-assign]
+                self._llm._handle_tool_call = original_handle
             current_anchor_runtime.reset(token)
 
     def __getattr__(self, name: str) -> Any:

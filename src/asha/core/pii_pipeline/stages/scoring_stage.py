@@ -2,9 +2,9 @@
 Stage 3: Confidence Scoring Engine - Calculate and adjust entity confidence scores
 """
 
-import re
 import math
-from typing import Dict, Any, List
+import re
+from typing import Any, Dict, List
 from .base_stage import BaseStage, StageResult, PIIContext, PIIEntity
 
 
@@ -24,7 +24,7 @@ class ScoringStage(BaseStage):
         super().__init__("scoring")
 
         # Scoring configuration
-        self.scoring_config = {
+        self.scoring_config: Dict[str, Any] = {
             "base_confidence_weights": {
                 "regex": 0.9,
                 "heuristic": 0.6,

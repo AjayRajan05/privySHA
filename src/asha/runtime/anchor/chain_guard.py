@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import uuid
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from .verdicts import ChainVerdict, Verdict
 from .types import ActionEvent, ChainEvent
@@ -39,7 +39,7 @@ class ChainGuard:
 
     def __init__(self, *, use_markov: bool = True) -> None:
         self.use_markov = use_markov
-        self._last_score = None
+        self._last_score: Optional[dict[str, Any]] = None
 
     def normalize_chain(
         self, actions: List[ActionEvent], pattern: Optional[str] = None

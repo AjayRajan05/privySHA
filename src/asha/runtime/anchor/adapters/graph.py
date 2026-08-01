@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, AsyncIterator, Iterator, List, Optional
 
 from ..runtime import AnchorRuntime
 from .base import (
@@ -118,7 +118,9 @@ class _AnchoredGraphProxy:
         finally:
             finalize_session(self._runtime)
 
-    def stream(self, input: Any, config: Any = None, **kwargs: Any):  # noqa: A002
+    def stream(
+        self, input: Any, config: Any = None, **kwargs: Any
+    ) -> Iterator[Any]:  # noqa: A002
         self._begin_step(input)
         config = self._inject_callbacks(config)
         try:
@@ -134,7 +136,9 @@ class _AnchoredGraphProxy:
         finally:
             finalize_session(self._runtime)
 
-    async def astream(self, input: Any, config: Any = None, **kwargs: Any):  # noqa: A002
+    async def astream(
+        self, input: Any, config: Any = None, **kwargs: Any
+    ) -> AsyncIterator[Any]:  # noqa: A002
         self._begin_step(input)
         config = self._inject_callbacks(config)
         try:

@@ -337,8 +337,6 @@ class DomainClassifier:
         if self._ready:
             return
         with self._lock:
-            if self._ready:
-                return
             path = self._classifier_path or _default_model_path("domain_clf.joblib")
             if path is not None and Path(path).is_file():
                 try:

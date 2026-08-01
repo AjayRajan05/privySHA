@@ -130,11 +130,11 @@ class InjectionDetector:
         self.mode = mode
         self._patterns = list(patterns or [])
         self.allow_hash_fallback = allow_hash_fallback
-        self._ppl = None
-        self._emb = None
-        self._meta = None
+        self._ppl: Optional[Any] = None
+        self._emb: Optional[Any] = None
+        self._meta: Optional[Any] = None
         self._meta_ready = False
-        self._lite = None
+        self._lite: Optional[Any] = None
         self._lock = threading.Lock()
 
     def _perplexity(self) -> Any:
@@ -157,9 +157,6 @@ class InjectionDetector:
         if self._meta_ready:
             return
         with self._lock:
-            if self._meta_ready:
-                return
-
             from asha.core.ml.model_store import resolve_model_file
 
             path = resolve_model_file("injection", "fusion_meta.joblib", ensure=True)
@@ -200,7 +197,10 @@ class InjectionDetector:
 
     def detect(self, text: str) -> InjectionDetectionResult:
         if self.mode == "lite":
-            return self._lite_detector().detect(text)
+            result = self._lite_detector().detect(text)
+            if isinstance(result, InjectionDetectionResult):
+                return result
+            raise TypeError("Lite injection detector returned an invalid result.")
 
         bands = _injection_bands()
 
@@ -214,7 +214,7 @@ class InjectionDetector:
             if not hit:
                 verdict = Verdict.SAFE
                 probability = 0.05
-            elif hit:
+            else:
                 verdict = Verdict.BLOCK
                 probability = max(probability, bands.block_min)
             return InjectionDetectionResult(

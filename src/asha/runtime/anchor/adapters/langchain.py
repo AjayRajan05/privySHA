@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from ..llm_guard import evaluate_llm_tool_calls
 from ..runtime import AnchorRuntime
@@ -201,7 +201,9 @@ class _AnchoredLangChainProxy:
             result = await self._inner.ainvoke(input, config, **kwargs) if config else await self._inner.ainvoke(input, **kwargs)
         return self._end_step(result)
 
-    def stream(self, input: Any, config: Any = None, **kwargs: Any):  # noqa: A002
+    def stream(
+        self, input: Any, config: Any = None, **kwargs: Any
+    ) -> Iterator[Any]:  # noqa: A002
         self._begin_step(input)
         config = self._inject_callbacks(config)
         with bind_runtime(self._runtime):

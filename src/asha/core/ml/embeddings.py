@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import List, Optional, Sequence, Union, cast
+from typing import Any, List, Optional, Sequence, Union
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,12 @@ TextInput = Union[str, Sequence[str]]
 
 # Process-wide shared SentenceTransformer — reloading MiniLM mid-process can
 # native-crash on Windows (ACCESS_VIOLATION); never unload once loaded.
-_shared_st_model = None
+_shared_st_model: Optional[Any] = None
 _shared_st_name: Optional[str] = None
 _shared_st_lock = threading.Lock()
 
 
-def _get_shared_sentence_transformer(model_name: str):
+def _get_shared_sentence_transformer(model_name: str) -> Any:
     global _shared_st_model, _shared_st_name
     with _shared_st_lock:
         if _shared_st_model is not None and _shared_st_name == model_name:
@@ -71,7 +71,7 @@ class EmbeddingEncoder:
             )
         self.model_name = model_name
         self.allow_hash_fallback = False
-        self._model = None
+        self._model: Optional[Any] = None
         self._lock = threading.Lock()
 
     @property
@@ -98,8 +98,6 @@ class EmbeddingEncoder:
         if self.is_loaded:
             return
         with self._lock:
-            if self.is_loaded:
-                return
             self._load_model()
 
     def encode(
@@ -112,12 +110,16 @@ class EmbeddingEncoder:
         import numpy as np
 
         self.ensure_loaded()
-        single = isinstance(texts, str)
-        batch: List[str] = [cast(str, texts)] if single else list(cast(Sequence[str], texts))
+        if isinstance(texts, str):
+            batch: List[str] = [texts]
+        else:
+            batch = list(texts)
         if not batch:
             return np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
 
-        raw = self._model.encode(
+        model = self._model
+        assert model is not None
+        raw = model.encode(
             batch,
             normalize_embeddings=normalize,
             show_progress_bar=False,
@@ -132,7 +134,7 @@ class EmbeddingEncoder:
     def encode_one(self, text: str, *, normalize: bool = True) -> "object":
         import numpy as np
 
-        matrix = cast("object", self.encode(text, normalize=normalize))
+        matrix = self.encode(text, normalize=normalize)
         return np.asarray(matrix)[0]
 
     def cosine_similarity(self, a: str, b: str) -> float:

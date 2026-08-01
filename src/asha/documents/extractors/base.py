@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import BinaryIO, Optional, Union, cast
+from typing import BinaryIO, Optional, Union
 
 from ..types import ExtractedDocument
 
@@ -33,10 +33,13 @@ def _read_bytes(source: Union[Path, bytes, BinaryIO]) -> bytes:
         return source
     if isinstance(source, Path):
         return source.read_bytes()
-    data = source.read()
+    # Typed as bytes for BinaryIO, but some text-mode file objects return str.
+    data: object = source.read()
     if isinstance(data, str):
         return data.encode("utf-8", errors="replace")
-    return cast(bytes, data)
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
+    raise TypeError(f"Unsupported file payload type: {type(data)!r}")
 
 
 def _detect_format(data: bytes, filename: Optional[str] = None) -> str:

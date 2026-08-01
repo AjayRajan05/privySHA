@@ -167,8 +167,6 @@ def load_thresholds(
     if path is not None:
         resolved = Path(path)
         data = _read_yaml(resolved)
-        if path is None:
-            _THRESHOLDS_CACHE = data
         return data
 
     for candidate in _candidate_threshold_paths():

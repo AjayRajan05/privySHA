@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import uuid
 import time
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from .verdicts import MemoryVerdict, Verdict
 from .types import MemoryEvent
@@ -37,8 +37,6 @@ from .contracts import MissionContract
 
 
 def _hardened_poison_model_available() -> bool:
-    pass
-
     from asha.core.ml.model_store import ensure_models, resolve_model_file
 
     ensure_models()
@@ -82,11 +80,11 @@ class MemoryGuard:
             )
         )
         self.allow_hash_fallback = allow_hash_fallback
-        self._poisoning_clf = None
-        self._last_poisoning_score = None
+        self._poisoning_clf: Optional[Any] = None
+        self._last_poisoning_score: Optional[Any] = None
         self._last_secret_hits: List[object] = []
 
-    def _classifier(self):
+    def _classifier(self) -> Any:
         if self._poisoning_clf is None:
             from .poisoning_classifier import PoisoningClassifier
 

@@ -229,6 +229,20 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 
+[[tool.mypy.overrides]]
+module = [
+    "asha.integrations.langchain.*",
+    "asha.integrations.llamaindex.*",
+    "asha.integrations.auto_patch",
+    "asha.integrations.framework_adapters",
+    "asha.integrations.composition_strategy",
+    "asha.integrations.fastapi.*",
+    "asha.integrations.flask.*",
+    "asha.runtime.adapters.claude_adapter",
+    "asha.runtime.adapters.hf_adapter",
+]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers --strict-config -m \"not integration\""

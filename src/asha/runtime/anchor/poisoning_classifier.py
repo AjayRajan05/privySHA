@@ -96,8 +96,8 @@ class PoisoningClassifier:
         self._classifier: Any = None
         self._clf_ready = False
         self._centroids_ready = False
-        self._inj_centroid = None
-        self._ben_centroid = None
+        self._inj_centroid: Any = None
+        self._ben_centroid: Any = None
         self._lock = threading.Lock()
 
     def _encoder(self) -> Any:
@@ -118,8 +118,6 @@ class PoisoningClassifier:
         if self._clf_ready:
             return
         with self._lock:
-            if self._clf_ready:
-                return
             path = self._classifier_path or _default_model_path(
                 "poisoning_rf.joblib"
             )
@@ -136,8 +134,6 @@ class PoisoningClassifier:
         if self._centroids_ready:
             return
         with self._lock:
-            if self._centroids_ready:
-                return
             import numpy as np
 
             enc = self._encoder()

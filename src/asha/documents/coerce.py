@@ -43,7 +43,7 @@ def coerce_prompt_input(
         return extract_text(bytes(prompt), filename=filename).text
 
     if hasattr(prompt, "read") and not isinstance(prompt, (str, Path)):
-        return extract_text(prompt, filename=filename).text  # type: ignore[arg-type]
+        return extract_text(prompt, filename=filename).text
 
     if isinstance(prompt, str):
         if _looks_like_document_path(prompt):

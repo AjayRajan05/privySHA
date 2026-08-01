@@ -108,7 +108,7 @@ class SpacyNERDetector:
         self.model_name = model_name or os.environ.get(
             "ASHA_SPACY_MODEL", "en_core_web_sm"
         )
-        self._nlp = None
+        self._nlp: Any = None
         self._load_attempted = False
         self._lock = threading.Lock()
 
@@ -121,13 +121,11 @@ class SpacyNERDetector:
         if self._load_attempted:
             return
         with self._lock:
-            if self._load_attempted:
-                return
             self._load_attempted = True
             if os.environ.get("ASHA_DISABLE_ML", "").lower() in ("1", "true", "yes"):
                 return
             try:
-                import spacy  # type: ignore
+                import spacy
 
                 try:
                     self._nlp = spacy.load(self.model_name)

@@ -76,9 +76,12 @@ def _normalize_one(item: ToolInput) -> Optional[AgentTool]:
             )
         return None
     if callable(item):
-        name = getattr(item, "name", None) or getattr(item, "__name__", type(item).__name__)
+        name = str(
+            getattr(item, "name", None)
+            or getattr(item, "__name__", type(item).__name__)
+        )
         return AgentTool(
-            name=str(name),
+            name=name,
             description=str(getattr(item, "description", "") or f"Tool: {name}"),
             runner=item,
             args_schema=getattr(item, "args_schema", None),

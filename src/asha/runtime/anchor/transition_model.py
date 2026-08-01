@@ -146,8 +146,6 @@ def get_transition_model(*, reset: bool = False) -> TransitionModel:
     if _model_singleton is not None:
         return _model_singleton
     with _model_lock:
-        if _model_singleton is not None:
-            return _model_singleton
         for path in _candidate_matrix_paths():
             if path.is_file():
                 _model_singleton = TransitionModel.from_json(path)

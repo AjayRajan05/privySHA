@@ -3,7 +3,7 @@ Stage 2: Multi-Detector Engine - Parallel PII detection
 """
 
 import re
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
 from .base_stage import BaseStage, StageResult, PIIContext, PIIEntity
 from ..components.detectors.regex_detector import RegexDetector
@@ -43,7 +43,7 @@ class DetectionStage(BaseStage):
             "min_confidence": 0.3,
             "overlap_threshold": 0.5,  # For entity deduplication
         }
-        self._ner_detector = None
+        self._ner_detector: Optional[Any] = None
 
     def execute(self, context: PIIContext) -> StageResult:
         """
@@ -219,7 +219,9 @@ class DetectionStage(BaseStage):
             from ..components.detectors.ner_detector import SpacyNERDetector
 
             self._ner_detector = SpacyNERDetector()
-        return list(self._ner_detector.detect(text))
+        detector = self._ner_detector
+        assert detector is not None
+        return list(detector.detect(text))
 
     def _drop_example_email_overlaps(
         self, text: str, entities: List[PIIEntity]

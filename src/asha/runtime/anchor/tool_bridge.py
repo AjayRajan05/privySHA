@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 from .runtime import AnchorRuntime
 
@@ -87,11 +87,11 @@ def _resolve_runner(tool: Any) -> Callable[..., Any]:
             return result
         return _invoke
     if hasattr(tool, "fn") and callable(tool.fn):
-        return tool.fn
+        return cast(Callable[..., Any], tool.fn)
     if hasattr(tool, "func") and callable(tool.func):
-        return tool.func
+        return cast(Callable[..., Any], tool.func)
     if callable(tool):
-        return tool
+        return cast(Callable[..., Any], tool)
     raise TypeError(f"Cannot wrap tool '{tool_name_of(tool)}' — no runnable entry point.")
 
 
@@ -182,7 +182,7 @@ def wrap_tool(
     if isinstance(tool, AnchoredToolDelegate):
         return tool
     if getattr(tool, "_anchor_wrapped", False):
-        return tool  # type: ignore[return-value]
+        return cast(AnchoredToolDelegate, tool)
     delegate = AnchoredToolDelegate(tool, runtime, name=name)
     _register_caps_from_tool(tool, delegate.name)
     return delegate

@@ -19,7 +19,9 @@ Prevents silent logic corruption and intent preservation failures.
 """
 
 import re
-from typing import Literal, Tuple, List
+from typing import List, Literal, Tuple
+
+from asha.core.ml.optimizer_similarity import SimilarityResult
 
 SimilarityMode = Literal["auto", "embedding", "jaccard"]
 
@@ -190,7 +192,7 @@ class SafetyConstraints:
         text_lower = text.lower()
         return sum(1 for word in self.logic_operators if word in text_lower)
 
-    def _similarity_result(self, original: str, optimized: str):
+    def _similarity_result(self, original: str, optimized: str) -> SimilarityResult:
         from asha.core.ml.optimizer_similarity import compute_similarity
 
         return compute_similarity(

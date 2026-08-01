@@ -13,7 +13,9 @@ class MissionCompiler:
         self.default_risk_tolerance = default_risk_tolerance
         self._domain_clf = get_domain_classifier()
 
-    def compile(self, prompt: str, context: Dict[str, Any] = None) -> MissionContract:
+    def compile(
+        self, prompt: str, context: Dict[str, Any] | None = None
+    ) -> MissionContract:
         """
         Extracts the primary goal, domains, and actions from the user prompt.
         Prioritizes the explicit goal, derives scope conservatively, and is deterministic.

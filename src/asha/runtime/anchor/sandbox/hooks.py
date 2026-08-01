@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import builtins
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Optional
+import builtins
+from typing import Any, Callable, Iterator, Optional, cast
 
 from .policy import SandboxPolicy
 
@@ -19,7 +19,7 @@ def enforcement_hooks(policy: SandboxPolicy) -> Iterator[None]:
     original_open = builtins.open
     blocked: list[str] = []
 
-    def guarded_open(file, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+    def guarded_open(file: Any, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
         path = str(file).replace("\\", "/").lower()
         writing = any(flag in mode for flag in ("w", "a", "+", "x"))
         if writing and not policy.allow_file_write:
@@ -39,15 +39,15 @@ def enforcement_hooks(policy: SandboxPolicy) -> Iterator[None]:
 
     patched_modules: dict[str, Any] = {}
     try:
-        builtins.open = guarded_open  # type: ignore[assignment]
+        setattr(builtins, "open", guarded_open)
         if not policy.allow_network:
             for module_name in policy.blocked_modules:
                 if module_name in sys.modules:
                     patched_modules[module_name] = sys.modules[module_name]
-                    sys.modules[module_name] = None  # type: ignore[assignment]
+                    cast(Any, sys.modules)[module_name] = None
         yield
     finally:
-        builtins.open = original_open
+        setattr(builtins, "open", original_open)
         for module_name, module in patched_modules.items():
             sys.modules[module_name] = module
 

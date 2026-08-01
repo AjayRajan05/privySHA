@@ -3,7 +3,7 @@ Regex-based PII Detector - High precision pattern matching
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from ...stages.base_stage import PIIEntity
 from ....security.patterns import compile_pii_patterns, is_example_email
 
@@ -97,7 +97,7 @@ class RegexDetector:
         self,
         scan_text: str,
         original_text: str,
-        validate_pii_checksum,
+        validate_pii_checksum: Callable[[str, str], Tuple[bool, str]],
     ) -> List[PIIEntity]:
         entities = []
         use_original_offsets = scan_text is original_text

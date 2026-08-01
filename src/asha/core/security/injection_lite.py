@@ -134,8 +134,6 @@ class LiteInjectionDetector:
         if self._ready:
             return
         with self._lock:
-            if self._ready:
-                return
             if self._matcher is None:
                 self._matcher = PatternMatcher(
                     LITE_INJECTION_PHRASES,

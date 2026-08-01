@@ -7,7 +7,7 @@ try:
 
     __all__.extend(["anchor_crewai", "AnchoredTool"])
 except ImportError:
-    anchor_crewai = None  # type: ignore[misc, assignment]
+    anchor_crewai = None  # type: ignore[assignment]
     AnchoredTool = None  # type: ignore[misc, assignment]
 
 from .generic import anchor_generic  # noqa: F401
@@ -20,39 +20,39 @@ try:
 
     __all__.append("anchor_asha_agent")
 except ImportError:
-    anchor_asha_agent = None  # type: ignore[misc, assignment]
+    anchor_asha_agent = None  # type: ignore[assignment]
 
 try:
     from .graph import anchor_graph
 
     __all__.append("anchor_graph")
 except ImportError:
-    anchor_graph = None  # type: ignore[misc, assignment]
+    anchor_graph = None  # type: ignore[assignment]
 
 try:
     from .langchain import anchor_langchain
 
     __all__.append("anchor_langchain")
 except ImportError:
-    anchor_langchain = None  # type: ignore[misc, assignment]
+    anchor_langchain = None  # type: ignore[assignment]
 
 try:
     from .mcp import anchor_mcp
 
     __all__.append("anchor_mcp")
 except ImportError:
-    anchor_mcp = None  # type: ignore[misc, assignment]
+    anchor_mcp = None  # type: ignore[assignment]
 
 try:
     from .autogen import anchor_autogen
 
     __all__.append("anchor_autogen")
 except ImportError:
-    anchor_autogen = None  # type: ignore[misc, assignment]
+    anchor_autogen = None  # type: ignore[assignment]
 
 try:
     from .llamaindex import anchor_llamaindex
 
     __all__.append("anchor_llamaindex")
 except ImportError:
-    anchor_llamaindex = None  # type: ignore[misc, assignment]
+    anchor_llamaindex = None  # type: ignore[assignment]

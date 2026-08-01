@@ -82,12 +82,16 @@ def _mask_content_value(
 
             # OpenAI-style input_file / file parts with local path or bytes
             if ptype in ("file", "input_file", "document"):
-                file_obj = part.get("file") if isinstance(part.get("file"), dict) else {}
+                file_value = part.get("file")
+                file_obj: Dict[str, Any] = (
+                    file_value if isinstance(file_value, dict) else {}
+                )
                 filename = (
                     part.get("filename")
                     or part.get("name")
                     or file_obj.get("filename")
                 )
+                filename_str = str(filename) if filename is not None else None
                 file_data = (
                     part.get("data")
                     or part.get("content")
@@ -97,14 +101,17 @@ def _mask_content_value(
                 path = part.get("path") or part.get("file_path")
                 if isinstance(path, str) and _is_path_string(path):
                     masked = _extract_and_mask(
-                        path, filename=filename or Path(path).name, mode=mode, token_budget=token_budget
+                        path,
+                        filename=filename_str or Path(path).name,
+                        mode=mode,
+                        token_budget=token_budget,
                     )
                     out.append({"type": "text", "text": masked})
                     continue
                 if isinstance(file_data, (bytes, bytearray)):
                     masked = _extract_and_mask(
                         bytes(file_data),
-                        filename=str(filename) if filename else None,
+                        filename=filename_str,
                         mode=mode,
                         token_budget=token_budget,
                     )
@@ -113,7 +120,7 @@ def _mask_content_value(
                 if isinstance(file_data, str) and _is_path_string(file_data):
                     masked = _extract_and_mask(
                         file_data,
-                        filename=filename or Path(file_data).name,
+                        filename=filename_str or Path(file_data).name,
                         mode=mode,
                         token_budget=token_budget,
                     )

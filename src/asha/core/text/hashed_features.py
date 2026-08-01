@@ -165,8 +165,8 @@ class HashedLinearClassifier:
             weights_obj = data.get("weights")
             if not isinstance(weights_obj, list):
                 raise TypeError("weights must be a list of floats or weights_b64")
-            weight_list = weights_obj  # type: ignore[assignment]
-        bias = float(data.get("bias", 0.0))  # type: ignore[arg-type]
+            weight_list = [float(value) for value in weights_obj]
+        bias = float(str(data.get("bias", 0.0)))
         n_bits = data.get("n_bits")
         ngram = data.get("ngram_range", [3, 5])
         if not isinstance(ngram, (list, tuple)) or len(ngram) != 2:
@@ -182,7 +182,7 @@ class HashedLinearClassifier:
         return cls(
             weight_list,
             bias,
-            n_bits=int(n_bits) if n_bits is not None else None,
+            n_bits=int(str(n_bits)) if n_bits is not None else None,
             ngram_range=ngram_range,
             calibration=calibration,
         )
@@ -281,7 +281,7 @@ class HashedOvRClassifier:
         return cls(
             labels,
             models,
-            n_bits=int(n_bits) if n_bits is not None else None,
+            n_bits=int(str(n_bits)) if n_bits is not None else None,
             ngram_range=ngram_range,
         )
 

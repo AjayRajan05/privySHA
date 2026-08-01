@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Iterator, List, Optional
 
 from ..runtime import AnchorRuntime
 from ..tool_bridge import wrap_tool
@@ -92,7 +92,7 @@ class _AnchoredLlamaIndexProxy:
         prompt = extract_prompt_from_input(kwargs.get("input") or (args[0] if args else ""))
         return self._execute_and_finalize(prompt, self._inner.run_step, *args, **kwargs)
 
-    def stream_events(self, *args: Any, **kwargs: Any):
+    def stream_events(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
         prompt = extract_prompt_from_input(kwargs.get("input") or (args[0] if args else ""))
         self._bind_mission(prompt)
         with bind_runtime(self._runtime):

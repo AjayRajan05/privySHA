@@ -147,9 +147,9 @@ class AlignmentEvaluator:
         if forbidden_matches:
             # Soft penalty only when not already a hard capability match.
             score *= 0.3 ** len(forbidden_matches)
-            detail = format_forbidden_matches(forbidden_matches)
-            explanations.append("Metadata policy violations: " + "; ".join(detail))
-            triggers.extend(detail)
+            details = format_forbidden_matches(forbidden_matches)
+            explanations.append("Metadata policy violations: " + "; ".join(details))
+            triggers.extend(details)
 
         if any(keyword in action_type for keyword in ["write", "update", "delete", "send"]):
             if contract.risk_tolerance == "LOW":

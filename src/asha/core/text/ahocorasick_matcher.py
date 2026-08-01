@@ -122,7 +122,7 @@ class _PyAhoCorasickAutomaton:
     """Thin wrapper around pyahocorasick with the same Match API."""
 
     def __init__(self) -> None:
-        import ahocorasick  # type: ignore
+        import ahocorasick
 
         self._A = ahocorasick.Automaton()
         self._meta: Dict[str, Tuple[str, float]] = {}
@@ -167,10 +167,10 @@ def _normalize_specs(
     out: List[Tuple[str, str, float]] = []
     for item in patterns:
         if len(item) == 2:
-            pattern, label = item  # type: ignore[misc]
+            pattern, label = item
             weight = 1.0
         else:
-            pattern, label, weight = item  # type: ignore[misc]
+            pattern, label, weight = item
         out.append((str(pattern), str(label), float(weight)))
     return out
 

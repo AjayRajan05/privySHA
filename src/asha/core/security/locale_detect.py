@@ -65,7 +65,7 @@ def detect_locale(text: str) -> LocaleGuess:
     # Optional langdetect.
     lang: Optional[str] = None
     try:
-        from langdetect import detect_langs  # type: ignore
+        from langdetect import detect_langs
 
         guesses = detect_langs(text[:2000])
         if guesses:

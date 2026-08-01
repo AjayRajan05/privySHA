@@ -110,7 +110,7 @@ class KenLMWrapper:
     """Optional KenLM backend; raises ImportError if kenlm is unavailable."""
 
     def __init__(self, model_path: Union[str, Path]) -> None:
-        import kenlm  # type: ignore
+        import kenlm
 
         self._model = kenlm.Model(str(model_path))
 
@@ -152,8 +152,6 @@ class PerplexityScorer:
         if self._lm_ready:
             return
         with self._lock:
-            if self._lm_ready:
-                return
             if self._kenlm_path and self._kenlm_path.is_file():
                 try:
                     self._lm = KenLMWrapper(self._kenlm_path)
@@ -168,8 +166,6 @@ class PerplexityScorer:
         if self._clf_ready:
             return
         with self._lock:
-            if self._clf_ready:
-                return
             path = self._classifier_path or _default_model_path("perplexity_gb.joblib")
             if path is not None and path.is_file():
                 try:
