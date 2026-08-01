@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from ..runtime import AnchorRuntime
 from ..tool_bridge import guarded_tool_call
 from ..tool_capabilities import infer_capabilities_from_name, register_tool_capabilities
 from .base import (
     bind_runtime,
-    finalize_session,
     finalize_step_output,
     initialize_mission,
     refresh_mission_phase,

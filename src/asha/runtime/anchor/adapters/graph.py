@@ -5,14 +5,12 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from ..runtime import AnchorRuntime
-from ..tool_bridge import wrap_tool
 from .base import (
     bind_runtime,
     extract_prompt_from_input,
     finalize_session,
     finalize_step_output,
     initialize_mission,
-    is_wrapped,
     refresh_mission_phase,
     safe_setattr,
     tool_name,

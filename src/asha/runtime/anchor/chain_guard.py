@@ -29,7 +29,7 @@ from .types import ActionEvent, ChainEvent
 from .contracts import MissionContract
 from .payload_inspection import is_high_risk_tool, is_read_tool
 from .tool_capabilities import categorize_tool, get_tool_capabilities
-from .transition_model import get_transition_model, score_category_sequence
+from .transition_model import score_category_sequence
 
 from asha.core.ml.calibration import Verdict as MLVerdict
 

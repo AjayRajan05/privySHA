@@ -37,8 +37,7 @@ from .contracts import MissionContract
 
 
 def _hardened_poison_model_available() -> bool:
-    import os
-    from pathlib import Path
+    pass
 
     from asha.core.ml.model_store import ensure_models, resolve_model_file
 

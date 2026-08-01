@@ -4,7 +4,7 @@ Stage 3: Confidence Scoring Engine - Calculate and adjust entity confidence scor
 
 import re
 import math
-from typing import Dict, Any, List, cast
+from typing import Dict, Any, List
 from .base_stage import BaseStage, StageResult, PIIContext, PIIEntity
 
 

@@ -36,7 +36,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

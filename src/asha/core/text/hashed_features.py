@@ -24,7 +24,6 @@ from __future__ import annotations
 import array
 import json
 import math
-import struct
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 

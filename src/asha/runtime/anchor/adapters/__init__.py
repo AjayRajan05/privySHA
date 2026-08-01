@@ -10,8 +10,8 @@ except ImportError:
     anchor_crewai = None  # type: ignore[misc, assignment]
     AnchoredTool = None  # type: ignore[misc, assignment]
 
-from .generic import anchor_generic
-from .registry import anchor_any
+from .generic import anchor_generic  # noqa: F401
+from .registry import anchor_any  # noqa: F401
 
 __all__.extend(["anchor_any", "anchor_generic"])
 

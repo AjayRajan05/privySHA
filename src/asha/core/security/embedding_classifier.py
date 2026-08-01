@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 import threading
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Union
 
 # Seed phrases for centroid fallback when no trained model is on disk.
 _INJECTION_SEEDS = (

@@ -23,7 +23,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-import warnings
 from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)

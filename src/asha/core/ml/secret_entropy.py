@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Pattern, Sequence, Tuple
+from typing import List, Optional, Pattern, Sequence, Tuple
 
 
 @dataclass(frozen=True)

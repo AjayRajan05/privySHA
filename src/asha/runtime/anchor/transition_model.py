@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -26,7 +25,6 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from asha.core.ml.calibration import (
     ThresholdBands,
     Verdict,
-    bucket_probability,
     get_bands,
     load_thresholds,
 )

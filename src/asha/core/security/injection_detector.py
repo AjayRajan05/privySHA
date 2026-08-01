@@ -42,7 +42,6 @@ import os
 import re
 import threading
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from asha.core.ml.calibration import (
@@ -160,7 +159,6 @@ class InjectionDetector:
         with self._lock:
             if self._meta_ready:
                 return
-            from pathlib import Path
 
             from asha.core.ml.model_store import resolve_model_file
 

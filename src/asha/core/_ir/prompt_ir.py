@@ -119,7 +119,6 @@ class PromptIR:
 
     def __post_init__(self) -> None:
         """Post-initialization processing."""
-        pass
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert IR to dictionary representation."""

@@ -20,7 +20,6 @@ sklearn is lazy-imported; regex verb-bank fallback abstains on ties / zero score
 
 from __future__ import annotations
 
-import os
 import re
 import threading
 from dataclasses import dataclass

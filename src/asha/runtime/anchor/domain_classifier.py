@@ -21,7 +21,6 @@ confidence (fail-closed).  sklearn is lazy-imported only on predict/load.
 
 from __future__ import annotations
 
-import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path

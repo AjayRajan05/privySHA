@@ -21,14 +21,12 @@ Pipeline: canonicalize → phrase Aho-Corasick → char-LM windowed perplexity
 from __future__ import annotations
 
 import math
-import os
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from asha.core.ml.calibration import (
     ThresholdBands,
-    Verdict,
     bucket_probability,
     get_bands,
     load_thresholds,

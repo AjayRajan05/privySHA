@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from .coerce import coerce_prompt_input
 from .extractors.base import KNOWN_EXTENSIONS
