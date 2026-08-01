@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from typing import Any, Dict, Optional
 
 from .types import ActionEvent, ChainEvent, MemoryEvent, RiskSummary, AnchorState
@@ -28,6 +29,16 @@ from .plan_guard import PlanVerdict
 
 def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _clear_logger_handlers(logger: logging.Logger) -> None:
+    """Drop cached handlers (logging keeps loggers alive after GC; ids can be reused)."""
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        try:
+            handler.close()
+        except Exception:
+            pass
 
 
 class AnchorTelemetry:
@@ -49,11 +60,14 @@ class AnchorTelemetry:
             enabled = _env_truthy("ASHA_ANCHOR_TELEMETRY") or bool(log_file) or bool(env_path)
         self.enabled = bool(enabled)
         self.log_file = log_file or env_path or "anchor_telemetry.jsonl"
-        self.logger = logging.getLogger(f"AnchorTelemetry.{id(self)}")
+        # Unique name per instance — never reuse id(self); logging caches loggers and
+        # object ids can collide after GC, leaving stale FileHandlers attached.
+        self.logger = logging.getLogger(f"AnchorTelemetry.{uuid.uuid4().hex}")
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
+        _clear_logger_handlers(self.logger)
 
-        if self.enabled and not self.logger.handlers:
+        if self.enabled:
             handler = logging.FileHandler(self.log_file)
             handler.setFormatter(logging.Formatter("%(message)s"))
             self.logger.addHandler(handler)
@@ -62,6 +76,8 @@ class AnchorTelemetry:
         if not self.enabled:
             return
         self.logger.info(json.dumps(log_entry))
+        for handler in self.logger.handlers:
+            handler.flush()
 
     def _redact_payload(self, payload: Dict[str, Any]) -> Dict[str, str]:
         return {k: "[REDACTED]" for k in payload.keys()}
